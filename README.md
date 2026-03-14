@@ -19,9 +19,10 @@ Download the latest release:
 ```bash
 curl -fLO "$(curl -fsSL https://api.github.com/repos/jul-sh/tapkey/releases/latest | grep browser_download_url | cut -d '"' -f 4)"
 unzip tapkey-*.zip
-cp -r Tapkey.app /Applications/
-mkdir -p ~/.local/bin
-ln -sf /Applications/Tapkey.app/Contents/MacOS/tapkey ~/.local/bin/tapkey
+mkdir -p ~/.local/share/tapkey ~/.local/bin
+rm -rf ~/.local/share/tapkey/Tapkey.app
+mv Tapkey.app ~/.local/share/tapkey/
+ln -sf ~/.local/share/tapkey/Tapkey.app/Contents/MacOS/tapkey ~/.local/bin/tapkey
 ```
 
 Release artifacts are signed, notarized, and can be verified against GitHub Actions build attestation, so you can check that the release binary was built securely from the public, auditable source code in this repository:

@@ -21,11 +21,18 @@ sign:
 		--entitlements tapkey.entitlements $(BUNDLE)
 	@echo "Signed $(BUNDLE)"
 
+INSTALL_DIR = $(HOME)/.local/share/tapkey
+INSTALL_BUNDLE = $(INSTALL_DIR)/$(BUNDLE)
+INSTALL_BIN = $(INSTALL_BUNDLE)/Contents/MacOS/tapkey
+
 install: all
-	@cp -r $(BUNDLE) /Applications/
 	@mkdir -p $(HOME)/.local/bin
-	@ln -sf /Applications/$(BUNDLE)/Contents/MacOS/tapkey $(HOME)/.local/bin/tapkey
-	@echo "Installed: /Applications/$(BUNDLE) + ~/.local/bin/tapkey"
+	@rm -rf $(INSTALL_BUNDLE)
+	@mkdir -p $(INSTALL_DIR)
+	@cp -R $(BUNDLE) $(INSTALL_BUNDLE)
+	@ln -sf $(INSTALL_BIN) $(HOME)/.local/bin/tapkey
+	@echo "Installed: $(INSTALL_BUNDLE)"
+	@echo "Symlinked: ~/.local/bin/tapkey -> $(INSTALL_BIN)"
 
 verify:
 	codesign -dvv $(BUNDLE) 2>&1
