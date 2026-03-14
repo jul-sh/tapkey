@@ -2,13 +2,11 @@
 
 ⚠️ Pre-release experimental software. The design is still in flux, breaking changes should be expected for now, and it has not yet had a security review.
 
-tapkey is a tiny macOS app that lets you recover the same SSH key, `age` identity, or app secret on any Mac where you can unlock the same passkey.
+tapkey is a tiny CLI/app that lets you recover the same SSH key, `age` identity, or app secret on any device where you can unlock the same passkey.
 
 Passkey providers sync passkeys. They usually do not sync arbitrary private keys such as SSH keys. tapkey bridges that gap by deriving the key locally after passkey authentication, without manually copying private key files between machines.
 
 For example, iCloud Keychain syncs passkeys tied to your Apple account, but it will not sync an SSH private key. tapkey lets that synced passkey act as the root, so the SSH key can be re-derived locally on each of your Macs.
-
-If the passkey you need is on your iPhone and not on the Mac in front of you, that is still fine. macOS will show a QR code, you scan it, approve with Apple's native passkey flow, and the Mac gets just the secret material needed to derive the same key locally. No tapkey sync service, no private-key file shuffling, no extra account.
 
 ## Install
 
@@ -56,6 +54,8 @@ Then derive key material:
 ```bash
 tapkey derive
 ```
+
+If the passkey is synced to this Mac, authentication happens locally. If it's only on your phone, macOS shows a QR code — you scan it, approve on your phone, and the Mac receives only the derived secret, never the passkey itself.
 
 Derive key material in different formats:
 
@@ -127,11 +127,12 @@ tapkey's security model is simple: the passkey is the root secret.
 
 In other words: tapkey is not a vault. It is a deterministic derivation tool built on top of passkey security.
 
-## Requirements
+## Platforms
 
-- macOS 15.0 or later
-- Apple Silicon (`arm64`)
-- A passkey provider with PRF support (like Apple's built-in Password Manager)
+- **macOS CLI** — native Rust app, macOS 15.0+, Apple Silicon
+- **Web** — standalone browser app at [tapkey.jul.sh/app.html](https://tapkey.jul.sh/app.html), runs entirely client-side via WASM
+
+All platforms require a passkey provider with PRF support (like Apple's built-in Password Manager).
 
 ## Development
 
@@ -139,14 +140,14 @@ In other words: tapkey is not a vault. It is a deterministic derivation tool bui
 # Enter dev shell
 nix develop
 
-# Build and sign
+# Build and sign macOS app
 make
 
-# Build, sign, and install
-make install
+# Build WASM package
+make build-wasm
 
-# Verify codesigning
-make verify
+# Run tests
+make test
 
 # Clean
 make clean

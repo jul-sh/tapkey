@@ -1,3 +1,5 @@
 Tapkey.app/
 Tapkey.provisionprofile
 target/
+web/pkg/
+.claude/

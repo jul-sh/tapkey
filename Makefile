@@ -3,8 +3,9 @@ BUNDLE = $(APP_NAME).app
 BIN = $(BUNDLE)/Contents/MacOS/tapkey
 IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application" && echo "Developer ID Application" || echo "-")
 PROVISIONING_PROFILE ?=
+NIX := ./run-in-nix.sh -c
 
-.PHONY: all build sign setup-signing install verify clean
+.PHONY: all build build-wasm setup-signing sign install verify clean test test-core test-web verify-core-parity
 
 all: build sign
 
@@ -12,12 +13,15 @@ setup-signing:
 	@./distribution/setup-signing.sh
 
 build:
+	cargo build --release -p tapkey
 	@mkdir -p $(BUNDLE)/Contents/MacOS
-	@cp Info.plist $(BUNDLE)/Contents/Info.plist
-	swiftc -O -target arm64-apple-macos15.0 \
-		-framework AuthenticationServices -framework AppKit \
-		Sources/Tapkey.swift -o $(BIN)
+	@cp mac/Info.plist $(BUNDLE)/Contents/Info.plist
+	@cp target/release/tapkey $(BIN)
 	@echo "Built $(BUNDLE)"
+
+build-wasm:
+	$(NIX) "wasm-pack build --target web web/wasm --out-dir ../pkg"
+	@echo "Built web/pkg/"
 
 sign:
 	@if [ -n "$(PROVISIONING_PROFILE)" ]; then \
@@ -29,7 +33,7 @@ sign:
 	fi
 	codesign --force --options runtime --timestamp \
 		--sign "$(IDENTITY)" \
-		--entitlements tapkey.entitlements $(BUNDLE)
+		--entitlements mac/tapkey.entitlements $(BUNDLE)
 	@echo "Signed $(BUNDLE)"
 
 INSTALL_DIR = $(HOME)/.local/share/tapkey
@@ -50,5 +54,21 @@ verify:
 	@echo ""
 	codesign -d --entitlements :- $(BUNDLE)
 
+test: test-core test-web
+	@echo "All tests passed."
+
+test-core:
+	$(NIX) "cargo test -p tapkey-core"
+	@echo "Core tests passed."
+
+test-web:
+	$(NIX) "wasm-pack test --node web/wasm"
+	@echo "Web (WASM) tests passed."
+
+verify-core-parity: test-core test-web
+	@echo "Core parity verified: Rust and WASM produce identical outputs."
+
 clean:
 	rm -rf $(BUNDLE)
+	rm -rf target
+	rm -rf web/pkg

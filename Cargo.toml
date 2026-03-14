@@ -1,0 +1,3 @@
+[workspace]
+members = ["core", "mac", "web/wasm"]
+resolver = "2"
