@@ -8,6 +8,8 @@ Passkey providers sync passkeys. They usually do not sync arbitrary private keys
 
 For example, iCloud Keychain syncs passkeys tied to your Apple account, but it will not sync an SSH private key. tapkey lets that synced passkey act as the root, so the SSH key can be re-derived locally on each of your Macs.
 
+If the passkey you need is on your iPhone and not on the Mac in front of you, that is still fine. macOS will show a QR code, you scan it, approve with Apple's native passkey flow, and the Mac gets just the secret material needed to derive the same key locally. No tapkey sync service, no private-key file shuffling, no extra account.
+
 ## Install
 
 ### From release
