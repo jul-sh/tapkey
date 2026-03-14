@@ -1,2 +1,4 @@
 Tapkey.app/
 target/
+web/pkg/
+.claude/
