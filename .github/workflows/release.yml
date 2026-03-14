@@ -58,6 +58,12 @@ jobs:
           P12_BASE64: ${{ steps.secrets.outputs.MACOS_P12_BASE64 }}
           P12_PASSWORD: ${{ steps.secrets.outputs.MACOS_P12_PASSWORD }}
 
+      - name: Embed provisioning profile
+        run: |
+          echo "$PROVISION_PROFILE_BASE64" | base64 --decode > Tapkey.provisionprofile
+        env:
+          PROVISION_PROFILE_BASE64: ${{ steps.secrets.outputs.PROVISION_PROFILE_BASE64 }}
+
       - name: Build
         run: make build
 
