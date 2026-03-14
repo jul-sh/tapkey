@@ -1,5 +1,7 @@
 # tapkey
 
+⚠️ Pre-release experimental software. The design is still in flux, breaking changes should be expected for now, and it has not yet had a security review.
+
 tapkey is a tiny macOS app that lets you recover the same SSH key, `age` identity, or app secret on any Mac where you can unlock the same passkey.
 
 Passkey providers sync passkeys. They usually do not sync arbitrary private keys such as SSH keys. tapkey bridges that gap by deriving the key locally after passkey authentication, without manually copying private key files between machines.
@@ -52,10 +54,12 @@ Create the passkey once, only needed on the first Mac:
 tapkey register
 ```
 
+If native passkey registration is not available yet, tapkey falls back to the hosted passkey flow on `tapkey.jul.sh`.
+
 Then after that you can derive key material! 
 
 ```bash
-tapkey derive [name]
+tapkey derive
 ```
 
 tapkey first tries a local or synced passkey. If none is available, it falls back to nearby-device passkey flow so you can approve the request on your iPhone.

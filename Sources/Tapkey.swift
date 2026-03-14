@@ -434,31 +434,82 @@ struct Arguments {
 
 // MARK: - Nearby Web Flow
 
-struct NearbyPageConfig: Codable {
-    enum Operation: String, Codable {
+enum NearbyPageConfig: Encodable {
+    struct RegisterPayload: Encodable {
+        let rpId: String
+        let challengeBase64URL: String
+        let prfSaltBase64URL: String
+        let userIDBase64URL: String
+        let userName: String
+    }
+
+    struct AssertPayload: Encodable {
+        let rpId: String
+        let challengeBase64URL: String
+        let prfSaltBase64URL: String
+        let keyName: String
+        let preferredCredentialIDBase64URL: String?
+    }
+
+    case register(RegisterPayload)
+    case assert(AssertPayload)
+
+    private enum CodingKeys: String, CodingKey {
+        case operation
+        case rpId
+        case challengeBase64URL
+        case prfSaltBase64URL
+        case userIDBase64URL
+        case userName
+        case keyName
+        case preferredCredentialIDBase64URL
+    }
+
+    private enum Operation: String, Encodable {
         case register
         case assert
     }
 
-    let operation: Operation
-    let rpId: String
-    let challengeBase64URL: String
-    let prfSaltBase64URL: String
-    let keyName: String?
-    let userIDBase64URL: String?
-    let userName: String?
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case .register(let payload):
+            try container.encode(Operation.register, forKey: .operation)
+            try container.encode(payload.rpId, forKey: .rpId)
+            try container.encode(payload.challengeBase64URL, forKey: .challengeBase64URL)
+            try container.encode(payload.prfSaltBase64URL, forKey: .prfSaltBase64URL)
+            try container.encode(payload.userIDBase64URL, forKey: .userIDBase64URL)
+            try container.encode(payload.userName, forKey: .userName)
+        case .assert(let payload):
+            try container.encode(Operation.assert, forKey: .operation)
+            try container.encode(payload.rpId, forKey: .rpId)
+            try container.encode(payload.challengeBase64URL, forKey: .challengeBase64URL)
+            try container.encode(payload.prfSaltBase64URL, forKey: .prfSaltBase64URL)
+            try container.encode(payload.keyName, forKey: .keyName)
+            try container.encodeIfPresent(payload.preferredCredentialIDBase64URL, forKey: .preferredCredentialIDBase64URL)
+        }
+    }
+}
+
+struct NearbyAssertionRequest {
+    let keyOptions: KeyOptions
+    let preferredCredentialID: Data?
 }
 
 enum NearbyResult {
-    case register(credentialID: Data, prfSupported: Bool)
+    case register(credentialID: Data)
     case assert(keyOptions: KeyOptions, credentialID: Data, prfOutput: SymmetricKey)
 }
 
 enum NearbyMessage: Decodable {
-    struct SuccessPayload: Decodable {
+    struct RegisterSuccessPayload: Decodable {
         let credentialId: String
-        let prfFirst: String?
-        let prfSupported: Bool?
+    }
+
+    struct AssertSuccessPayload: Decodable {
+        let credentialId: String
+        let prfFirst: String
     }
 
     struct ErrorPayload: Decodable {
@@ -466,32 +517,38 @@ enum NearbyMessage: Decodable {
         let message: String
     }
 
-    case success(SuccessPayload)
+    case registerSuccess(RegisterSuccessPayload)
+    case assertSuccess(AssertSuccessPayload)
     case error(ErrorPayload)
 
     private enum CodingKeys: String, CodingKey {
         case type
         case credentialId
         case prfFirst
-        case prfSupported
         case code
         case message
     }
 
     private enum MessageType: String, Decodable {
-        case success
+        case registerSuccess = "register-success"
+        case assertSuccess = "assert-success"
         case error
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         switch try container.decode(MessageType.self, forKey: .type) {
-        case .success:
-            self = .success(
-                SuccessPayload(
+        case .registerSuccess:
+            self = .registerSuccess(
+                RegisterSuccessPayload(
+                    credentialId: try container.decode(String.self, forKey: .credentialId)
+                )
+            )
+        case .assertSuccess:
+            self = .assertSuccess(
+                AssertSuccessPayload(
                     credentialId: try container.decode(String.self, forKey: .credentialId),
-                    prfFirst: try container.decodeIfPresent(String.self, forKey: .prfFirst),
-                    prfSupported: try container.decodeIfPresent(Bool.self, forKey: .prfSupported)
+                    prfFirst: try container.decode(String.self, forKey: .prfFirst)
                 )
             )
         case .error:
@@ -508,7 +565,7 @@ enum NearbyMessage: Decodable {
 final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDelegate, WKScriptMessageHandler {
     enum Operation {
         case register
-        case assert(KeyOptions)
+        case assert(NearbyAssertionRequest)
     }
 
     enum State {
@@ -562,7 +619,7 @@ final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDel
         self.window = window
         self.webView = webView
 
-        webView.load(URLRequest(url: Config.nearbyPageURL))
+        webView.load(URLRequest(url: pageURL(for: operation)))
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -585,8 +642,10 @@ final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDel
         }
 
         switch decoded {
-        case .success(let payload):
-            handleSuccess(payload)
+        case .registerSuccess(let payload):
+            handleRegisterSuccess(payload)
+        case .assertSuccess(let payload):
+            handleAssertSuccess(payload)
         case .error(let payload):
             let detail = payload.code.map { "\($0): \(payload.message)" } ?? payload.message
             finishFailure("nearby-device flow failed: \(detail)")
@@ -595,12 +654,6 @@ final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDel
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         state = .awaitingWebAuthnResult
-        let script = injectedScript()
-        webView.evaluateJavaScript(script) { _, error in
-            if let error {
-                self.finishFailure("failed to initialize nearby-device flow: \(error.localizedDescription)")
-            }
-        }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -635,7 +688,7 @@ final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDel
         }
     }
 
-    private func handleSuccess(_ payload: NearbyMessage.SuccessPayload) {
+    private func handleRegisterSuccess(_ payload: NearbyMessage.RegisterSuccessPayload) {
         guard let credentialID = Data(base64URLEncoded: payload.credentialId) else {
             finishFailure("nearby-device flow returned an invalid credential ID")
             return
@@ -643,14 +696,34 @@ final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDel
 
         switch operation {
         case .register:
-            finishSuccess(.register(credentialID: credentialID, prfSupported: payload.prfSupported ?? false))
-        case .assert(let keyOptions):
-            guard let prfFirst = payload.prfFirst,
-                  let prfData = Data(base64URLEncoded: prfFirst) else {
-                finishFailure("nearby-device flow did not return PRF output")
-                return
-            }
-            finishSuccess(.assert(keyOptions: keyOptions, credentialID: credentialID, prfOutput: SymmetricKey(data: prfData)))
+            finishSuccess(.register(credentialID: credentialID))
+        case .assert:
+            finishFailure("nearby-device flow returned a registration result during assertion")
+        }
+    }
+
+    private func handleAssertSuccess(_ payload: NearbyMessage.AssertSuccessPayload) {
+        guard let credentialID = Data(base64URLEncoded: payload.credentialId) else {
+            finishFailure("nearby-device flow returned an invalid credential ID")
+            return
+        }
+
+        guard let prfData = Data(base64URLEncoded: payload.prfFirst) else {
+            finishFailure("nearby-device flow did not return PRF output")
+            return
+        }
+
+        switch operation {
+        case .register:
+            finishFailure("nearby-device flow returned an assertion result during registration")
+        case .assert(let request):
+            finishSuccess(
+                .assert(
+                    keyOptions: request.keyOptions,
+                    credentialID: credentialID,
+                    prfOutput: SymmetricKey(data: prfData)
+                )
+            )
         }
     }
 
@@ -693,186 +766,35 @@ final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDel
         }
     }
 
-    private func injectedScript() -> String {
+    private func pageURL(for operation: Operation) -> URL {
         let config = pageConfig(for: operation)
         let jsonData = try! JSONEncoder().encode(config)
-        let json = String(data: jsonData, encoding: .utf8)!
-
-        return """
-        (() => {
-          const config = \(json);
-          const bridge = window.webkit?.messageHandlers?.tapkey;
-          const post = (payload) => {
-            if (bridge) {
-              bridge.postMessage(JSON.stringify(payload));
-            } else {
-              console.log(payload);
-            }
-          };
-          const title = document.getElementById('title');
-          const summary = document.getElementById('summary');
-          const details = document.getElementById('details');
-          const button = document.getElementById('start');
-          const status = document.getElementById('status');
-
-          const decodeBase64URL = (value) => {
-            const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
-            const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-            const binary = atob(padded);
-            return Uint8Array.from(binary, (char) => char.charCodeAt(0));
-          };
-
-          const encodeBase64URL = (value) => {
-            const bytes = value instanceof Uint8Array
-              ? value
-              : value instanceof ArrayBuffer
-                ? new Uint8Array(value)
-                : new Uint8Array(value.buffer, value.byteOffset || 0, value.byteLength);
-            let binary = '';
-            for (const byte of bytes) {
-              binary += String.fromCharCode(byte);
-            }
-            return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
-          };
-
-          const update = (message) => {
-            status.textContent = message;
-          };
-
-          const fail = (error) => {
-            const message = error?.message || String(error);
-            const code = error?.name || null;
-            update(message);
-            button.disabled = false;
-            button.textContent = config.operation === 'register' ? 'Try Register Again' : 'Try Again';
-            post({ type: 'error', code, message });
-          };
-
-          const runRegister = async () => {
-            update('Waiting for passkey creation...');
-            const credential = await navigator.credentials.create({
-              publicKey: {
-                challenge: decodeBase64URL(config.challengeBase64URL),
-                rp: {
-                  id: config.rpId,
-                  name: 'tapkey'
-                },
-                user: {
-                  id: decodeBase64URL(config.userIDBase64URL),
-                  name: config.userName,
-                  displayName: config.userName
-                },
-                pubKeyCredParams: [
-                  { type: 'public-key', alg: -7 },
-                  { type: 'public-key', alg: -257 }
-                ],
-                authenticatorSelection: {
-                  residentKey: 'required',
-                  userVerification: 'required'
-                },
-                attestation: 'none',
-                timeout: 120000,
-                extensions: {
-                  prf: {
-                    eval: { first: decodeBase64URL(config.prfSaltBase64URL) }
-                  }
-                }
-              }
-            });
-
-            const extensionResults = credential.getClientExtensionResults?.() || {};
-            const prfSupported = extensionResults.prf?.enabled === true;
-
-            post({
-              type: 'success',
-              credentialId: encodeBase64URL(credential.rawId),
-              prfSupported
-            });
-          };
-
-          const runAssert = async () => {
-            update('Waiting for passkey approval...');
-            const credential = await navigator.credentials.get({
-              publicKey: {
-                challenge: decodeBase64URL(config.challengeBase64URL),
-                rpId: config.rpId,
-                userVerification: 'required',
-                timeout: 120000,
-                extensions: {
-                  prf: {
-                    eval: { first: decodeBase64URL(config.prfSaltBase64URL) }
-                  }
-                }
-              }
-            });
-
-            const extensionResults = credential.getClientExtensionResults?.() || {};
-            const prfFirst = extensionResults.prf?.results?.first;
-            if (!prfFirst) {
-              throw new Error('PRF output was not returned by this passkey flow.');
-            }
-
-            post({
-              type: 'success',
-              credentialId: encodeBase64URL(credential.rawId),
-              prfFirst: encodeBase64URL(prfFirst)
-            });
-          };
-
-          const start = async () => {
-            button.disabled = true;
-            button.textContent = config.operation === 'register' ? 'Registering...' : 'Waiting...';
-            try {
-              if (!window.PublicKeyCredential || !navigator.credentials) {
-                throw new Error('WebAuthn is not available in this web view.');
-              }
-
-              if (config.operation === 'register') {
-                await runRegister();
-              } else {
-                await runAssert();
-              }
-            } catch (error) {
-              fail(error);
-            }
-          };
-
-          title.textContent = config.operation === 'register' ? 'Create Tapkey Passkey' : 'Use Nearby Passkey';
-          summary.textContent = config.operation === 'register'
-            ? 'Create the tapkey passkey. If you do not want the passkey on this Mac, choose the nearby-device option and approve it on your iPhone.'
-            : 'Approve a tapkey assertion. If the passkey is not on this Mac, choose the nearby-device option and scan the QR code with your iPhone.';
-          details.textContent = config.operation === 'register'
-            ? 'This creates the passkey root used by tapkey.'
-            : `Requested key name: ${config.keyName}`;
-          button.disabled = false;
-          button.textContent = config.operation === 'register' ? 'Continue To Register' : 'Continue To Authenticate';
-          update('Ready.');
-          button.addEventListener('click', start);
-        })();
-        """
+        var urlComponents = URLComponents(url: Config.nearbyPageURL, resolvingAgainstBaseURL: false)!
+        urlComponents.fragment = "cfg=\(jsonData.base64URLEncodedString())"
+        return urlComponents.url!
     }
 
     private func pageConfig(for operation: Operation) -> NearbyPageConfig {
         switch operation {
         case .register:
-            return NearbyPageConfig(
-                operation: .register,
-                rpId: Config.relyingParty,
-                challengeBase64URL: randomChallenge().base64URLEncodedString(),
-                prfSaltBase64URL: Config.prfSalt(for: "default").base64URLEncodedString(),
-                keyName: nil,
-                userIDBase64URL: Config.registrationUserID.base64URLEncodedString(),
-                userName: Config.registrationName
+            return .register(
+                NearbyPageConfig.RegisterPayload(
+                    rpId: Config.relyingParty,
+                    challengeBase64URL: randomChallenge().base64URLEncodedString(),
+                    prfSaltBase64URL: Config.prfSalt(for: "default").base64URLEncodedString(),
+                    userIDBase64URL: Config.registrationUserID.base64URLEncodedString(),
+                    userName: Config.registrationName
+                )
             )
-        case .assert(let keyOptions):
-            return NearbyPageConfig(
-                operation: .assert,
-                rpId: Config.relyingParty,
-                challengeBase64URL: randomChallenge().base64URLEncodedString(),
-                prfSaltBase64URL: Config.prfSalt(for: keyOptions.name).base64URLEncodedString(),
-                keyName: keyOptions.name,
-                userIDBase64URL: nil,
-                userName: nil
+        case .assert(let request):
+            return .assert(
+                NearbyPageConfig.AssertPayload(
+                    rpId: Config.relyingParty,
+                    challengeBase64URL: randomChallenge().base64URLEncodedString(),
+                    prfSaltBase64URL: Config.prfSalt(for: request.keyOptions.name).base64URLEncodedString(),
+                    keyName: request.keyOptions.name,
+                    preferredCredentialIDBase64URL: request.preferredCredentialID?.base64URLEncodedString()
+                )
             )
         }
     }
@@ -882,6 +804,11 @@ final class NearbyWebFlowController: NSObject, NSWindowDelegate, WKNavigationDel
 
 enum AssertionNotHandledAction {
     case retry(message: String, perform: () -> Void)
+    case nearbyFlow(message: String, perform: () -> Void)
+    case fail(lines: [String])
+}
+
+enum RegistrationNotHandledAction {
     case nearbyFlow(message: String, perform: () -> Void)
     case fail(lines: [String])
 }
@@ -978,7 +905,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let controller = ASAuthorizationController(authorizationRequests: [request])
-        let delegate = RegistrationDelegate()
+        let delegate = RegistrationDelegate(
+            notHandledAction: .nearbyFlow(
+                message: "Native passkey registration was not available. Opening nearby-device passkey flow...",
+                perform: { [weak self] in
+                    self?.startNearbyRegistration()
+                }
+            )
+        )
         beginAuthorization(controller: controller, delegate: delegate)
     }
 
@@ -1028,8 +962,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startNearbyAssertion(command: AssertionCommand) {
+        let preferredCredentialID = (try? loadCredential())?.credentialID
         let flow = NearbyWebFlowController(
-            operation: .assert(keyOptions(for: command)),
+            operation: .assert(
+                NearbyAssertionRequest(
+                    keyOptions: keyOptions(for: command),
+                    preferredCredentialID: preferredCredentialID
+                )
+            ),
             onSuccess: { [weak self] result in
                 self?.handleNearbyResult(result)
             },
@@ -1048,12 +988,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         activeNearbyFlow = nil
 
         switch result {
-        case .register(let credentialID, let prfSupported):
-            guard prfSupported else {
-                fputs("error: passkey created but PRF is not supported by this nearby-device flow\n", stderr)
-                exit(1)
-            }
-
+        case .register(let credentialID):
             do {
                 try saveCredential(StoredCredential(credentialID: credentialID))
             } catch {
@@ -1169,6 +1104,12 @@ extension AppDelegate: ASAuthorizationControllerPresentationContextProviding {
 // MARK: - Registration Delegate
 
 final class RegistrationDelegate: NSObject, ASAuthorizationControllerDelegate {
+    let notHandledAction: RegistrationNotHandledAction
+
+    init(notHandledAction: RegistrationNotHandledAction) {
+        self.notHandledAction = notHandledAction
+    }
+
     func authorizationController(controller: ASAuthorizationController,
                                  didCompleteWithAuthorization authorization: ASAuthorization) {
         guard let credential = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialRegistration else {
@@ -1204,18 +1145,27 @@ final class RegistrationDelegate: NSObject, ASAuthorizationControllerDelegate {
             switch ASAuthorizationError.Code(rawValue: nsError.code) {
             case .canceled:
                 fputs("Registration cancelled.\n", stderr)
+                exit(1)
             case .failed:
                 fputs("error: registration failed — ensure your passkey provider is available\n", stderr)
+                exit(1)
             case .notHandled:
-                fputs("error: registration not handled — Associated Domains may not be configured\n", stderr)
-                fputs("  The AASA file at tapkey.jul.sh may not be cached yet.\n", stderr)
+                switch notHandledAction {
+                case .nearbyFlow(let message, let perform):
+                    fputs("\(message)\n", stderr)
+                    perform()
+                case .fail(let lines):
+                    lines.forEach { fputs("\($0)\n", stderr) }
+                    exit(1)
+                }
             default:
                 fputs("error: registration failed: \(error.localizedDescription)\n", stderr)
+                exit(1)
             }
         } else {
             fputs("error: registration failed: \(error.localizedDescription)\n", stderr)
+            exit(1)
         }
-        exit(1)
     }
 }
 
