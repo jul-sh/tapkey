@@ -582,7 +582,7 @@ class AssertionDelegate: NSObject, ASAuthorizationControllerDelegate {
             case .canceled:
                 fputs("Authentication cancelled.\n", stderr)
             case .failed:
-                fputs("error: authentication failed — Touch ID may have failed\n", stderr)
+                fputs("error: authentication failed — biometric or passkey authentication may have failed\n", stderr)
             case .notHandled:
                 fputs("error: not handled — credential may not be available on this device\n", stderr)
                 fputs("  If you registered on another device, ensure your passkey provider has synced.\n", stderr)

@@ -1,14 +1,14 @@
 # tapkey
 
-Derive deterministic symmetric keys from a passkey stored in your passkey provider, using Touch ID.
+Derive deterministic symmetric keys from a passkey via the WebAuthn PRF extension.
 
-Tap Touch ID on any Mac with the same passkey — get the same key. Works with iCloud Keychain, 1Password, or any passkey provider macOS supports. No server, no secrets to copy between machines.
+Same passkey on any device — same key. Works with any passkey provider that supports PRF (iCloud Keychain, 1Password, etc.). No server, no secrets to copy between machines.
 
 ## Install
 
 ### From release (recommended)
 
-Download the latest attested release:
+Download the latest release:
 
 ```bash
 gh release download --repo jul-sh/tapkey --pattern 'tapkey-*.zip'
@@ -20,11 +20,22 @@ mkdir -p ~/.local/bin
 ln -sf "$(pwd)/Tapkey.app/Contents/MacOS/tapkey" ~/.local/bin/tapkey
 ```
 
-Verify the build attestation:
+#### Verify build attestation
+
+Compute the artifact digest and verify it against Sigstore's transparency log:
 
 ```bash
-gh attestation verify tapkey-*.zip --owner jul-sh
+sha256sum tapkey-*.zip
+gh attestation download tapkey-*.zip -R jul-sh/tapkey
+cosign verify-blob-attestation \
+  --bundle <sha256:HASH>.jsonl \
+  --new-bundle-format \
+  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+  --certificate-identity-regexp="^https://github.com/jul-sh/tapkey/.github/workflows/release.yml" \
+  tapkey-*.zip
 ```
+
+This verifies that the binary was built by the expected GitHub Actions workflow, the signature is valid in Sigstore's transparency log (Rekor), and the artifact digest matches.
 
 ### From source
 
@@ -42,7 +53,7 @@ This compiles, codesigns with entitlements, and symlinks to `~/.local/bin/tapkey
 
 ### First-time setup
 
-Create a passkey (one-time setup — macOS will let you choose your passkey provider):
+Create a passkey (one-time — macOS will let you choose your passkey provider):
 
 ```bash
 tapkey register
@@ -91,7 +102,7 @@ age -d -i <(tapkey derive --name age --format age) secret.age
 ### Use with SSH
 
 ```bash
-# Write SSH key (tap Touch ID once)
+# Write SSH key
 tapkey derive --name ssh --format ssh > ~/.ssh/id_tapkey
 chmod 600 ~/.ssh/id_tapkey
 
@@ -109,14 +120,27 @@ tapkey public-key --name ssh --format ssh
 
 4. The derived bytes are formatted as hex, base64, an age secret key (Bech32), an OpenSSH Ed25519 key, or raw bytes.
 
+### Why not use the Secure Enclave directly?
+
+The Secure Enclave already participates — it handles the credential's private key operations and the PRF computation for platform authenticators on Apple Silicon. The PRF output (a `SymmetricKey`) is then returned to userspace, where HKDF derives the final key.
+
+Further Secure Enclave integration isn't useful here: the Secure Enclave only stores P-256 asymmetric keys and can't perform HKDF or store arbitrary symmetric keys. Since tapkey's purpose is to output key material for use by other tools, the key must leave process memory regardless.
+
+### Why can't I use an existing passkey?
+
+tapkey requires `tapkey register` because:
+
+- **PRF must be enabled at registration.** The PRF extension (CTAP2 `hmac-secret`) must be requested when the credential is created. Passkeys registered by typical website login flows don't request PRF, and it cannot be retroactively enabled.
+- **Relying party binding.** Passkeys are bound to their relying party identifier (`tapkey.jul.sh`). A passkey created for a different domain cannot be used.
+
 ## Security model
 
 ### What's trusted
 
-- **Your passkey provider** (iCloud Keychain, 1Password, etc.) — passkeys are synced via the provider's E2E encryption
-- **The Secure Enclave** — Touch ID / PRF evaluation happens in hardware
-- **The PRF extension** — deterministic output bound to the specific credential; different credentials produce different outputs even with the same salt
-- **HKDF-SHA256** — standard key derivation with domain separation via the `--name` parameter
+- **Your passkey provider** (iCloud Keychain, 1Password, etc.) — passkeys are synced via the provider's E2E encryption. For iCloud Keychain, the credential secret never leaves the Secure Enclave, and access is gated by biometric authentication.
+- **The PRF extension** — deterministic output bound to the specific credential; different credentials produce different outputs even with the same salt.
+- **HKDF-SHA256** — standard key derivation with domain separation via the `--name` parameter.
+- **GitHub Actions build attestation** (if using a release binary) — Sigstore-signed SLSA provenance proves the binary was built by the expected workflow from this repository. Verify via cosign + Rekor (see [install](#verify-build-attestation)).
 
 ### What's public and safe to expose
 
@@ -126,21 +150,20 @@ tapkey public-key --name ssh --format ssh
 
 ### Domain separation
 
-The `--name` flag sets the HKDF info string to `"tapkey:<name>"`. Since HKDF info is part of the expand step in the extract-then-expand construction, different names are cryptographically guaranteed to produce independent keys. The name is not length-limited but must be non-empty.
+The `--name` flag sets the HKDF info string to `"tapkey:<name>"`. HKDF info is part of the expand step in the extract-then-expand construction, so different names produce cryptographically independent keys. The info string is used as raw bytes — there is no parsing, escaping, or normalization, so the mapping from name to key is injective. However, names that are prefixes of each other (e.g. `"a"` vs `"ab"`) are still fully independent because HKDF processes the entire info string as an opaque input to HMAC.
 
 ### Threat model
 
-- **Attacker with physical access to unlocked Mac**: Can derive keys (same as any key in memory). tapkey doesn't add protection beyond what Touch ID provides — it's a convenience tool, not a vault.
-- **Attacker with stolen credentials**: Would also need a trusted device to approve passkey sync. Your provider's recovery protections apply.
-- **Attacker who compromises the binary**: Build attestation via GitHub Actions + `actions/attest-build-provenance` provides supply chain verification. Verify with `gh attestation verify`.
-- **Malicious HKDF info string**: No risk — HKDF info is a standard parameter that cannot cause collisions or oracle attacks regardless of content. Two different info strings always produce independent outputs.
+- **Attacker with physical access to unlocked Mac**: Can derive keys if they can authenticate with the passkey provider. tapkey is a convenience tool for key derivation, not a vault — it provides the same protection as your passkey provider's authentication (biometrics, device PIN, etc.).
+- **Attacker with stolen provider credentials**: Would also need a trusted device to approve passkey sync. Your provider's recovery protections apply.
+- **Attacker who compromises the binary**: Build attestation via Sigstore provides supply chain verification. Verify the artifact digest against the Rekor transparency log before trusting a release binary.
 
 ### What tapkey does NOT do
 
 - Store or transmit derived keys — they're printed to stdout and forgotten
 - Cache PRF output or derived keys
 - Phone home or make network requests
-- Run persistently — it launches, presents Touch ID, outputs the key, and exits
+- Run persistently — it launches, prompts for passkey authentication, outputs the key, and exits
 
 ## Requirements
 
