@@ -225,6 +225,46 @@ a:hover {
   font-size: 0.95rem;
 }
 
+/* ─── result ─── */
+
+.result {
+  margin-top: 28px;
+  padding: 20px 22px;
+  border: 1px solid var(--accent);
+  background: var(--panel-bg);
+}
+
+.result-value {
+  margin: 14px 0 0;
+  font-family: var(--body);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--accent);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+.copy-btn {
+  appearance: none;
+  border: 1px solid var(--accent);
+  padding: 4px 14px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 60ms, color 60ms;
+}
+
+.copy-btn:hover {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
 /* ─── responsive ─── */
 
 @media (max-width: 640px) {

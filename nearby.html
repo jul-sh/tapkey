@@ -34,6 +34,14 @@
     <button class="action" id="start" type="button" disabled>Waiting for tapkey</button>
     <p class="status" id="status" aria-live="polite">No session config.</p>
     <p class="hint" id="bridge-hint" hidden>Open this page from the tapkey app to hand the result back automatically.</p>
+
+    <section class="result" id="result" hidden>
+      <div class="panel-header">
+        <p class="panel-label">Result</p>
+        <button class="copy-btn" id="copy-btn" type="button">Copy</button>
+      </div>
+      <pre class="result-value" id="result-value"></pre>
+    </section>
   </main>
 </body>
 </html>

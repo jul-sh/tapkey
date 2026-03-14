@@ -9,7 +9,10 @@ const elements = {
   callout: document.getElementById('callout'),
   start: document.getElementById('start'),
   status: document.getElementById('status'),
-  bridgeHint: document.getElementById('bridge-hint')
+  bridgeHint: document.getElementById('bridge-hint'),
+  result: document.getElementById('result'),
+  resultValue: document.getElementById('result-value'),
+  copyBtn: document.getElementById('copy-btn')
 };
 
 const bridge = (() => {
@@ -128,14 +131,28 @@ function parseSession() {
   }
 }
 
+function showResult(payload) {
+  elements.result.hidden = false;
+  elements.resultValue.textContent = JSON.stringify(payload, null, 2);
+
+  elements.copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(JSON.stringify(payload)).then(() => {
+      elements.copyBtn.textContent = 'Copied';
+      setTimeout(() => { elements.copyBtn.textContent = 'Copy'; }, 2000);
+    }, () => {
+      elements.copyBtn.textContent = 'Failed';
+      setTimeout(() => { elements.copyBtn.textContent = 'Copy'; }, 2000);
+    });
+  });
+}
+
 function postToTapkey(payload) {
   if (bridge.kind === 'native') {
     bridge.handler.postMessage(JSON.stringify(payload));
     return;
   }
 
-  elements.bridgeHint.hidden = false;
-  console.log('tapkey nearby payload', payload);
+  showResult(payload);
 }
 
 function describeError(error, flowKind) {
@@ -173,7 +190,11 @@ function showFailure(failure, flowKind) {
 
 function showSuccess(payload) {
   runState = { kind: 'finished' };
-  updateStatus('Handing the result back to tapkey…');
+  if (bridge.kind === 'native') {
+    updateStatus('Handing the result back to tapkey…');
+  } else {
+    updateStatus('Done. Copy the result below.');
+  }
   postToTapkey(payload);
 }
 
@@ -282,13 +303,12 @@ async function runAssertion(flow) {
 }
 
 function configureFlow(flow) {
-  elements.bridgeHint.hidden = bridge.kind === 'native';
-
   if (!window.PublicKeyCredential || !navigator.credentials) {
     runState = { kind: 'blocked' };
-    elements.summary.textContent = 'This web view cannot run WebAuthn.';
-    elements.details.textContent = 'Nearby-device passkey flow requires WebAuthn support in WebKit.';
-    elements.callout.textContent = 'Open this page from a current macOS build of tapkey.';
+    elements.summary.textContent = 'This browser does not support WebAuthn.';
+    elements.details.textContent = 'The passkey ceremony requires a browser with WebAuthn and PRF support.';
+    elements.callout.textContent = 'Try a recent version of Chrome or Safari.';
+    elements.callout.hidden = false;
     setButton('Unavailable', true);
     updateStatus('WebAuthn is not available.');
     return;
@@ -298,14 +318,14 @@ function configureFlow(flow) {
     case 'register':
       elements.title.textContent = 'Create the tapkey passkey';
       elements.summary.textContent = 'Create the passkey once, then tapkey can recover the same keys anywhere that passkey is available.';
-      elements.details.textContent = 'If you do not want the passkey stored on this Mac, pick your iPhone or another nearby device in the passkey sheet.';
+      elements.details.textContent = 'If you do not want the passkey stored on this device, pick a nearby device in the passkey sheet.';
       elements.panelNote.textContent = 'The passkey becomes the root for every key tapkey derives later.';
       elements.steps.innerHTML = [
         '<li>Tap continue.</li>',
         '<li>Choose where the passkey should live.</li>',
         '<li>Approve the passkey creation.</li>'
       ].join('');
-      elements.callout.textContent = 'If the only copy should stay on your iPhone, choose the nearby-device option when the passkey sheet appears.';
+      elements.callout.textContent = 'If the only copy should stay on another device, choose the nearby-device option when the passkey sheet appears.';
       setButton('Continue to register', false);
       updateStatus('Ready.');
       runState = { kind: 'ready', flowKind: 'register' };
@@ -326,12 +346,12 @@ function configureFlow(flow) {
       return;
     case 'assert':
       elements.title.textContent = 'Use your tapkey passkey';
-      elements.summary.textContent = 'Recover the key you asked for on this Mac. If the passkey is elsewhere, scan the QR code with your iPhone and approve there.';
+      elements.summary.textContent = 'Recover the key you asked for. If the passkey is on another device, choose a nearby device when prompted.';
       elements.details.textContent = `Requested key name: ${flow.keyName}`;
       elements.panelNote.textContent = 'Same passkey, same name, same derived key.';
       elements.steps.innerHTML = [
         '<li>Tap continue.</li>',
-        '<li>Approve on this Mac or choose a nearby device.</li>',
+        '<li>Approve on this device or choose a nearby device.</li>',
         '<li>tapkey receives the PRF result and derives the key locally.</li>'
       ].join('');
       elements.callout.textContent = 'Only the requested secret is handed back to tapkey. The passkey itself stays with the authenticator that approved the request.';
