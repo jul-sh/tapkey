@@ -26,14 +26,7 @@ ln -sf "$(pwd)/Tapkey.app/Contents/MacOS/tapkey" ~/.local/bin/tapkey
 Release artifacts are signed, notarized, and can be verified against GitHub Actions build attestation, so you can check that the release binary was built securely from the public, auditable source code in this repository:
 
 ```bash
-sha256sum tapkey-*.zip
-gh attestation download tapkey-*.zip -R jul-sh/tapkey
-cosign verify-blob-attestation \
-  --bundle <sha256:HASH>.jsonl \
-  --new-bundle-format \
-  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  --certificate-identity-regexp="^https://github.com/jul-sh/tapkey/.github/workflows/release.yml" \
-  tapkey-*.zip
+gh attestation verify tapkey-*.zip -R jul-sh/tapkey
 ```
 
 ### From source

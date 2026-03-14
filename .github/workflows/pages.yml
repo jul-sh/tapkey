@@ -51,7 +51,7 @@ payload = {
 
 print(json.dumps(payload, separators=(",", ":")))
 PY
-          else
+          else;
             echo "::warning::Repository variable APPLE_TEAM_ID is not set; skipping apple-app-site-association."
           fi
         env:

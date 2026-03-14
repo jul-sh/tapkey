@@ -2,8 +2,8 @@ name: Build & Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -116,11 +116,11 @@ jobs:
         id: package
         run: |
           xattr -cr Tapkey.app
-          TAG="${GITHUB_REF#refs/tags/}"
-          ZIP_NAME="tapkey-${TAG}-arm64.zip"
+          SHA="${GITHUB_SHA::7}"
+          ZIP_NAME="tapkey-${SHA}-arm64.zip"
           ditto -c -k --keepParent Tapkey.app "$ZIP_NAME"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
       - name: Attest
         if: ${{ !github.event.repository.private }}
@@ -130,10 +130,12 @@ jobs:
 
       - name: Create release
         run: |
-          gh release create "$TAG" "$ZIP_NAME" \
-            --title "tapkey $TAG" \
-            --generate-notes
+          gh release create "$SHA" "$ZIP_NAME" \
+            --title "tapkey $SHA" \
+            --target "$GITHUB_SHA" \
+            --generate-notes \
+            --prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.package.outputs.tag }}
+          SHA: ${{ steps.package.outputs.sha }}
           ZIP_NAME: ${{ steps.package.outputs.zip_name }}
