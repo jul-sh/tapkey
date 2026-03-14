@@ -22,9 +22,10 @@ sign:
 	@echo "Signed $(BUNDLE)"
 
 install: all
+	@cp -r $(BUNDLE) /Applications/
 	@mkdir -p $(HOME)/.local/bin
-	@ln -sf $(abspath $(BIN)) $(HOME)/.local/bin/tapkey
-	@echo "Installed: ~/.local/bin/tapkey -> $(BIN)"
+	@ln -sf /Applications/$(BUNDLE)/Contents/MacOS/tapkey $(HOME)/.local/bin/tapkey
+	@echo "Installed: /Applications/$(BUNDLE) + ~/.local/bin/tapkey"
 
 verify:
 	codesign -dvv $(BUNDLE) 2>&1
