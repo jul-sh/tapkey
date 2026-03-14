@@ -359,21 +359,23 @@ function configureFlow(flow) {
 }
 
 function showMissingConfig() {
-  elements.title.textContent = 'Open this from tapkey';
-  elements.summary.textContent = 'This page is the hosted WebAuthn step for tapkey.';
-  elements.details.textContent = 'It expects a short-lived session config from the app, then performs either passkey registration or passkey approval.';
-  elements.panelNote.textContent = 'Nothing useful happens here without that session config.';
-  elements.callout.textContent = 'Use tapkey register or tapkey derive. The app opens this page when it needs nearby-device passkey flow.';
-  setButton('Waiting for tapkey', true);
-  updateStatus('No session config was provided.');
+  elements.title.textContent = 'No session config.';
+  elements.summary.textContent = 'This page runs the passkey ceremony for tapkey, but no session config was provided. If you expected authentication to happen, something went wrong.';
+  elements.details.textContent = '';
+  elements.panelNote.textContent = '';
+  elements.steps.innerHTML = '<li>Make sure tapkey is up to date.</li><li>Run <code>tapkey register</code> or <code>tapkey derive</code> again.</li>';
+  elements.callout.hidden = true;
+  setButton('Unavailable', true);
+  updateStatus('');
 }
 
 function showInvalidConfig(message) {
-  elements.title.textContent = 'Nearby flow configuration error';
-  elements.summary.textContent = 'The tapkey app opened this page with an invalid session config.';
-  elements.details.textContent = 'Update tapkey and try again.';
-  elements.panelNote.textContent = 'The hosted page and the app need to agree on the same message format.';
-  elements.callout.textContent = message;
+  elements.title.textContent = 'Something went wrong.';
+  elements.summary.textContent = 'tapkey opened this page with a config it can\'t understand.';
+  elements.details.textContent = message;
+  elements.panelNote.textContent = '';
+  elements.steps.innerHTML = '<li>Make sure tapkey is up to date.</li><li>Try the command again.</li>';
+  elements.callout.hidden = true;
   setButton('Unavailable', true);
   updateStatus(message);
   postToTapkey({ type: 'error', code: 'InvalidConfig', message });
