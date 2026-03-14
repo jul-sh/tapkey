@@ -46,13 +46,19 @@ make install
 
 ## Usage
 
-Create a passkey once:
+Create the passkey once, on the first Mac:
 
 ```bash
 tapkey register
 ```
 
-Derive key material:
+On another Mac where the passkey has already synced, you can go straight to `derive`:
+
+```bash
+tapkey derive
+```
+
+Derive key material in different formats:
 
 ```bash
 tapkey derive
@@ -103,6 +109,12 @@ tapkey public-key --name ssh --format ssh
 4. The result is formatted as raw bytes, hex, base64, an `age` secret key, or an OpenSSH Ed25519 key.
 
 Same passkey, same name, same derived key. Different names derive different keys.
+
+If you ever intentionally want to replace the tapkey passkey root, use:
+
+```bash
+tapkey register --replace
+```
 
 ## Security
 

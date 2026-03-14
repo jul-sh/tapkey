@@ -1,9 +1,14 @@
+import AppKit
 import AuthenticationServices
 import CryptoKit
-import AppKit
 import Foundation
 
-let tapkeyVersion = "0.1.2"
+private let fallbackTapkeyVersion = "0.1.2"
+
+func currentTapkeyVersion() -> String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        ?? fallbackTapkeyVersion
+}
 
 // MARK: - Bech32
 
@@ -61,38 +66,32 @@ enum Bech32 {
 // MARK: - OpenSSH Ed25519 Key Formatting
 
 enum SSHKey {
+    private static let checkIntLabel = Data("tapkey:ssh-checkint".utf8)
+
     // Encode a 32-byte Ed25519 seed as an OpenSSH PEM private key.
     // Format: https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.key
     static func privateKeyPEM(seed: Data) -> String {
         let privateKey = try! Curve25519.Signing.PrivateKey(rawRepresentation: seed)
         let pubBytes = privateKey.publicKey.rawRepresentation
 
-        // "openssh-key-v1\0" magic
         let magic = Data("openssh-key-v1\0".utf8)
-
-        // Cipher, KDF, KDF options (all "none" for unencrypted)
         let cipherName = sshString("none")
         let kdfName = sshString("none")
         let kdfOptions = sshString("")
         let numKeys = uint32BE(1)
 
-        // Public key blob: string "ssh-ed25519" + string pubkey
         let pubBlob = sshString("ssh-ed25519") + sshBytes(pubBytes)
         let pubSection = sshBytes(pubBlob)
 
-        // Private section (unencrypted)
-        // checkint (random, must match)
-        let checkInt = UInt32.random(in: 0...UInt32.max)
+        let checkInt = deterministicCheckInt(seed: seed)
         var privPayload = Data()
         privPayload += uint32BE(checkInt)
         privPayload += uint32BE(checkInt)
         privPayload += sshString("ssh-ed25519")
         privPayload += sshBytes(pubBytes)
-        // Ed25519 private key in OpenSSH format is 64 bytes: seed || pubkey
         privPayload += sshBytes(seed + pubBytes)
-        privPayload += sshString("") // comment
+        privPayload += sshString("")
 
-        // Pad to block size (8 bytes for "none" cipher)
         let blockSize = 8
         var padByte: UInt8 = 1
         while privPayload.count % blockSize != 0 {
@@ -101,9 +100,7 @@ enum SSHKey {
         }
 
         let privSection = sshBytes(privPayload)
-
         let blob = magic + cipherName + kdfName + kdfOptions + numKeys + pubSection + privSection
-
         let b64 = blob.base64EncodedString(options: [.lineLength76Characters, .endLineWithLineFeed])
         return "-----BEGIN OPENSSH PRIVATE KEY-----\n\(b64)\n-----END OPENSSH PRIVATE KEY-----\n"
     }
@@ -113,6 +110,12 @@ enum SSHKey {
         let pubBytes = privateKey.publicKey.rawRepresentation
         let blob = sshString("ssh-ed25519") + sshBytes(pubBytes)
         return "ssh-ed25519 \(blob.base64EncodedString()) tapkey"
+    }
+
+    private static func deterministicCheckInt(seed: Data) -> UInt32 {
+        var input = checkIntLabel
+        input.append(seed)
+        return SHA256.hash(data: input).prefix(4).reduce(0) { ($0 << 8) | UInt32($1) }
     }
 
     private static func uint32BE(_ v: UInt32) -> Data {
@@ -126,7 +129,7 @@ enum SSHKey {
     }
 
     private static func sshBytes(_ d: Data) -> Data {
-        return uint32BE(UInt32(d.count)) + d
+        uint32BE(UInt32(d.count)) + d
     }
 }
 
@@ -134,33 +137,47 @@ enum SSHKey {
 
 struct Config {
     static let relyingParty = "tapkey.jul.sh"
+    static let registrationName = "tapkey"
+    static let registrationUserID = Data("tapkey-user".utf8)
+    static let registrationChallenge = Data(SHA256.hash(data: Data("tapkey:registration".utf8)))
+    static let assertionChallenge = Data(SHA256.hash(data: Data("tapkey:assertion".utf8)))
+
     static let configDir = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/tapkey")
     static let credentialFile = configDir.appendingPathComponent("credential.json")
 
-    // Fixed PRF salt — public, deterministic. Changing this would change all derived keys.
+    // Fixed PRF salt — public, deterministic. Changing this rotates all derived keys.
     static let prfSalt: Data = {
         let hash = SHA256.hash(data: Data("tapkey:prf-salt-v1".utf8))
         return Data(hash)
     }()
 }
 
-// MARK: - Output Format
+// MARK: - Output
 
 enum OutputFormat: String {
-    case hex, base64, age, raw, ssh
+    case hex
+    case base64
+    case age
+    case raw
+    case ssh
+}
+
+struct KeyOptions {
+    let name: String
+    let format: OutputFormat
 }
 
 // MARK: - Credential Storage
 
-struct StoredCredential: Codable {
+struct StoredCredential: Codable, Equatable {
     let credentialID: Data
     let createdAt: String
 
     init(credentialID: Data) {
         self.credentialID = credentialID
-        let fmt = ISO8601DateFormatter()
-        self.createdAt = fmt.string(from: Date())
+        let formatter = ISO8601DateFormatter()
+        self.createdAt = formatter.string(from: Date())
     }
 }
 
@@ -169,7 +186,11 @@ func saveCredential(_ credential: StoredCredential) throws {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .prettyPrinted
     let data = try encoder.encode(credential)
-    try data.write(to: Config.credentialFile)
+    try data.write(to: Config.credentialFile, options: .atomic)
+    try FileManager.default.setAttributes(
+        [.posixPermissions: 0o600],
+        ofItemAtPath: Config.credentialFile.path
+    )
 }
 
 func loadCredential() throws -> StoredCredential {
@@ -177,10 +198,15 @@ func loadCredential() throws -> StoredCredential {
     return try JSONDecoder().decode(StoredCredential.self, from: data)
 }
 
+func cacheCredentialIDIfNeeded(_ credentialID: Data) throws {
+    if let stored = try? loadCredential(), stored.credentialID == credentialID {
+        return
+    }
+    try saveCredential(StoredCredential(credentialID: credentialID))
+}
+
 // MARK: - Key Derivation
 
-/// Derive 32 bytes from PRF output, domain-separated by name.
-/// HKDF info = "tapkey:<name>" — different names yield different keys from the same passkey.
 func deriveRawKey(from prfOutput: SymmetricKey, name: String) -> Data {
     let info = Data("tapkey:\(name)".utf8)
     let key = HKDF<SHA256>.deriveKey(
@@ -198,10 +224,8 @@ func formatKey(_ rawKey: Data, format: OutputFormat) -> String {
     case .base64:
         return rawKey.base64EncodedString()
     case .age:
-        let bech32 = Bech32.encode(hrp: "age-secret-key-", data: rawKey)
-        return bech32.uppercased()
+        return Bech32.encode(hrp: "age-secret-key-", data: rawKey).uppercased()
     case .raw:
-        // Handled separately — writes raw bytes to stdout
         fatalError("raw format should be handled before calling formatKey")
     case .ssh:
         return SSHKey.privateKeyPEM(seed: rawKey)
@@ -212,8 +236,7 @@ func formatPublicKey(_ rawKey: Data, format: OutputFormat) -> String {
     switch format {
     case .age:
         let privateKey = try! Curve25519.KeyAgreement.PrivateKey(rawRepresentation: rawKey)
-        let pubKeyData = privateKey.publicKey.rawRepresentation
-        return Bech32.encode(hrp: "age", data: pubKeyData)
+        return Bech32.encode(hrp: "age", data: privateKey.publicKey.rawRepresentation)
     case .ssh:
         return SSHKey.publicKeyLine(seed: rawKey)
     case .hex:
@@ -227,25 +250,23 @@ func formatPublicKey(_ rawKey: Data, format: OutputFormat) -> String {
     }
 }
 
-// MARK: - Argument Parsing
+// MARK: - Commands
+
+enum Command {
+    case register(replaceExisting: Bool)
+    case derive(KeyOptions)
+    case publicKey(KeyOptions)
+    case version
+}
 
 struct Arguments {
-    enum Command {
-        case register
-        case derive
-        case publicKey
-        case version
-    }
-
     let command: Command
-    let name: String
-    let format: OutputFormat
 
     static func parse() -> Arguments {
         let args = Array(CommandLine.arguments.dropFirst())
 
         if args.contains("--version") || args.contains("-v") {
-            return Arguments(command: .version, name: "default", format: .hex)
+            return Arguments(command: .version)
         }
 
         if args.contains("--help") || args.contains("-h") || args.isEmpty {
@@ -253,78 +274,90 @@ struct Arguments {
             exit(0)
         }
 
-        guard let cmd = args.first else {
+        guard let subcommand = args.first else {
             printUsage()
             exit(1)
         }
 
-        let command: Command
-        switch cmd {
+        switch subcommand {
         case "register":
-            command = .register
+            return Arguments(command: parseRegister(arguments: Array(args.dropFirst())))
         case "derive":
-            command = .derive
+            return Arguments(command: .derive(parseKeyOptions(arguments: Array(args.dropFirst()), defaultFormat: .hex)))
         case "public-key":
-            command = .publicKey
+            return Arguments(command: .publicKey(parseKeyOptions(arguments: Array(args.dropFirst()), defaultFormat: .age)))
         default:
-            fputs("error: unknown command '\(cmd)'\n", stderr)
+            fputs("error: unknown command '\(subcommand)'\n", stderr)
             printUsage()
             exit(1)
         }
+    }
 
+    private static func parseRegister(arguments: [String]) -> Command {
+        var replaceExisting = false
+
+        for argument in arguments {
+            switch argument {
+            case "--replace":
+                replaceExisting = true
+            default:
+                fputs("error: unknown option '\(argument)'\n", stderr)
+                exit(1)
+            }
+        }
+
+        return .register(replaceExisting: replaceExisting)
+    }
+
+    private static func parseKeyOptions(arguments: [String], defaultFormat: OutputFormat) -> KeyOptions {
         var name = "default"
-        var format = OutputFormat.hex
+        var format = defaultFormat
 
-        var i = 1
-        while i < args.count {
-            switch args[i] {
+        var index = 0
+        while index < arguments.count {
+            switch arguments[index] {
             case "--name":
-                guard i + 1 < args.count else {
+                guard index + 1 < arguments.count else {
                     fputs("error: --name requires a value\n", stderr)
                     exit(1)
                 }
-                i += 1
-                name = args[i]
-                if name.isEmpty {
-                    fputs("error: --name cannot be empty\n", stderr)
-                    exit(1)
-                }
-                if name.utf8.count > 1024 {
-                    fputs("error: --name must be at most 1024 bytes\n", stderr)
-                    exit(1)
-                }
-                if !name.allSatisfy({ $0.isASCII }) {
-                    fputs("error: --name must contain only ASCII characters\n", stderr)
-                    exit(1)
-                }
+                index += 1
+                name = arguments[index]
+                validateKeyName(name)
             case "--format":
-                guard i + 1 < args.count else {
+                guard index + 1 < arguments.count else {
                     fputs("error: --format requires a value (hex, base64, age, raw, ssh)\n", stderr)
                     exit(1)
                 }
-                i += 1
-                guard let f = OutputFormat(rawValue: args[i]) else {
-                    fputs("error: unknown format '\(args[i])'. Use: hex, base64, age, raw, ssh\n", stderr)
+                index += 1
+                guard let parsedFormat = OutputFormat(rawValue: arguments[index]) else {
+                    fputs("error: unknown format '\(arguments[index])'. Use: hex, base64, age, raw, ssh\n", stderr)
                     exit(1)
                 }
-                format = f
+                format = parsedFormat
             default:
-                fputs("error: unknown option '\(args[i])'\n", stderr)
+                fputs("error: unknown option '\(arguments[index])'\n", stderr)
                 exit(1)
             }
-            i += 1
+            index += 1
         }
 
-        // Default format for public-key depends on context
-        if command == .publicKey && format == .hex {
-            // If user didn't specify --format, default to age for public-key
-            let hasExplicitFormat = args.contains("--format")
-            if !hasExplicitFormat {
-                format = .age
-            }
-        }
+        return KeyOptions(name: name, format: format)
+    }
 
-        return Arguments(command: command, name: name, format: format)
+    private static func validateKeyName(_ name: String) {
+        if name.isEmpty {
+            fputs("error: --name cannot be empty\n", stderr)
+            exit(1)
+        }
+        if name.utf8.count > 1024 {
+            fputs("error: --name must be at most 1024 bytes\n", stderr)
+            exit(1)
+        }
+        if !name.allSatisfy({ $0.isASCII }) {
+            fputs("error: --name must contain only ASCII characters\n", stderr)
+            exit(1)
+        }
     }
 
     static func printUsage() {
@@ -332,23 +365,26 @@ struct Arguments {
         Usage: tapkey <command> [options]
 
         Commands:
-          register       Create a passkey (one-time setup)
-          derive         Derive a symmetric key from your passkey
-          public-key     Show the public key for a derived key
+          register [--replace]  Create the passkey root (one-time setup)
+          derive                Derive key material from your passkey
+          public-key            Show the public key for a derived key
 
         Options:
-          --name <name>    Key name for domain separation (default: "default")
-          --format <fmt>   Output format: hex, base64, age, raw, ssh (default: hex)
-          --version        Show version
+          --name <name>         Key name for domain separation (default: "default")
+          --format <fmt>        Output format: hex, base64, age, raw, ssh
+          --replace             Replace the locally registered passkey root
+          --version             Show version
 
         Examples:
           tapkey register
           tapkey derive
           tapkey derive --name backup --format base64
-          tapkey derive --name age --format age
           tapkey derive --name ssh --format ssh > ~/.ssh/id_tapkey
-          tapkey public-key --name ssh --format ssh >> ~/.ssh/authorized_keys
+          tapkey public-key --name ssh --format ssh
+          tapkey register --replace
 
+        On a new Mac with the passkey already synced, you can run 'tapkey derive'
+        directly. It will discover the passkey and cache the credential locally.
 
         """, stderr)
     }
@@ -357,6 +393,16 @@ struct Arguments {
 // MARK: - App Delegate
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    enum AssertionCommand {
+        case derive(KeyOptions)
+        case publicKey(KeyOptions)
+    }
+
+    enum CredentialSelection {
+        case stored(StoredCredential)
+        case discoverable
+    }
+
     let window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
         styleMask: [],
@@ -364,43 +410,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         defer: true
     )
 
-    let arguments: Arguments
+    let command: Command
+    var activeController: ASAuthorizationController?
+    var activeDelegate: NSObject?
 
-    init(arguments: Arguments) {
-        self.arguments = arguments
+    init(command: Command) {
+        self.command = command
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        switch arguments.command {
+        switch command {
         case .version:
-            print("tapkey \(tapkeyVersion)")
+            print("tapkey \(currentTapkeyVersion())")
             exit(0)
-        case .register:
-            performRegistration()
-        case .derive:
-            performAssertion(mode: .derive)
-        case .publicKey:
-            performAssertion(mode: .publicKey)
+        case .register(let replaceExisting):
+            performRegistration(replaceExisting: replaceExisting)
+        case .derive(let options):
+            performAssertion(command: .derive(options))
+        case .publicKey(let options):
+            performAssertion(command: .publicKey(options))
         }
     }
 
-    enum AssertionMode {
-        case derive
-        case publicKey
-    }
+    func performRegistration(replaceExisting: Bool) {
+        if (try? loadCredential()) != nil && !replaceExisting {
+            fputs("error: a tapkey passkey is already registered on this Mac\n", stderr)
+            fputs("  Run 'tapkey derive' to use it.\n", stderr)
+            fputs("  Use 'tapkey register --replace' only if you intend to rotate every derived key.\n", stderr)
+            exit(1)
+        }
 
-    func performRegistration() {
         let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(
             relyingPartyIdentifier: Config.relyingParty
         )
 
-        let challenge = Data(SHA256.hash(data: Data("tapkey:registration".utf8)))
         let request = provider.createCredentialRegistrationRequest(
-            challenge: challenge,
-            name: "tapkey",
-            userID: Data("tapkey-user".utf8)
+            challenge: Config.registrationChallenge,
+            name: Config.registrationName,
+            userID: Config.registrationUserID
         )
 
         if #available(macOS 15.0, *) {
@@ -412,36 +461,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let controller = ASAuthorizationController(authorizationRequests: [request])
         let delegate = RegistrationDelegate()
-        controller.delegate = delegate
-        controller.presentationContextProvider = self
-        controller.performRequests()
-
-        objc_setAssociatedObject(controller, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
+        beginAuthorization(controller: controller, delegate: delegate)
     }
 
-    func performAssertion(mode: AssertionMode) {
-        let credential: StoredCredential
-        do {
-            credential = try loadCredential()
-        } catch {
-            fputs("error: no registered credential found\n", stderr)
-            fputs("  Run 'tapkey register' first to create a passkey.\n", stderr)
-            exit(1)
+    func performAssertion(command: AssertionCommand) {
+        let selection: CredentialSelection
+        if let stored = try? loadCredential() {
+            selection = .stored(stored)
+        } else {
+            selection = .discoverable
         }
+        startAssertion(command: command, selection: selection)
+    }
 
+    func startAssertion(command: AssertionCommand, selection: CredentialSelection) {
         let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(
             relyingPartyIdentifier: Config.relyingParty
         )
 
-        let challenge = Data(SHA256.hash(data: Data("tapkey:assertion".utf8)))
-        let request = provider.createCredentialAssertionRequest(
-            challenge: challenge
-        )
-        request.allowedCredentials = [
-            ASAuthorizationPlatformPublicKeyCredentialDescriptor(
-                credentialID: credential.credentialID
-            )
-        ]
+        let request = provider.createCredentialAssertionRequest(challenge: Config.assertionChallenge)
+        switch selection {
+        case .stored(let stored):
+            request.allowedCredentials = [
+                ASAuthorizationPlatformPublicKeyCredentialDescriptor(
+                    credentialID: stored.credentialID
+                )
+            ]
+        case .discoverable:
+            break
+        }
 
         if #available(macOS 15.0, *) {
             let inputValues = ASAuthorizationPublicKeyCredentialPRFAssertionInput.InputValues
@@ -452,19 +500,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             exit(1)
         }
 
+        let retryWithoutStoredCredential: (() -> Void)?
+        switch selection {
+        case .stored:
+            retryWithoutStoredCredential = { [weak self] in
+                self?.startAssertion(command: command, selection: .discoverable)
+            }
+        case .discoverable:
+            retryWithoutStoredCredential = nil
+        }
+
         let controller = ASAuthorizationController(authorizationRequests: [request])
-        let delegate = AssertionDelegate(mode: mode, name: arguments.name, format: arguments.format)
+        let delegate = AssertionDelegate(
+            command: command,
+            selection: selection,
+            retryWithoutStoredCredential: retryWithoutStoredCredential
+        )
+        beginAuthorization(controller: controller, delegate: delegate)
+    }
+
+    func beginAuthorization(controller: ASAuthorizationController, delegate: NSObject & ASAuthorizationControllerDelegate) {
         controller.delegate = delegate
         controller.presentationContextProvider = self
+        activeController = controller
+        activeDelegate = delegate
         controller.performRequests()
-
-        objc_setAssociatedObject(controller, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
     }
 }
 
 extension AppDelegate: ASAuthorizationControllerPresentationContextProviding {
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        return window
+        window
     }
 }
 
@@ -480,18 +546,16 @@ class RegistrationDelegate: NSObject, ASAuthorizationControllerDelegate {
         }
 
         if #available(macOS 15.0, *) {
-            guard let prfOutput = credential.prf,
-                  prfOutput.isSupported else {
-                fputs("error: passkey created but PRF not supported by this authenticator\n", stderr)
+            guard let prfOutput = credential.prf, prfOutput.isSupported else {
+                fputs("error: passkey created but PRF is not supported by this authenticator\n", stderr)
                 fputs("  Platform passkeys on macOS 15+ should support PRF.\n", stderr)
-                fputs("  If using a hardware security key, it may not support the PRF extension.\n", stderr)
+                fputs("  Hardware security keys may not support the PRF extension.\n", stderr)
                 exit(1)
             }
         }
 
-        let stored = StoredCredential(credentialID: credential.credentialID)
         do {
-            try saveCredential(stored)
+            try saveCredential(StoredCredential(credentialID: credential.credentialID))
         } catch {
             fputs("error: failed to save credential: \(error.localizedDescription)\n", stderr)
             exit(1)
@@ -510,10 +574,10 @@ class RegistrationDelegate: NSObject, ASAuthorizationControllerDelegate {
             case .canceled:
                 fputs("Registration cancelled.\n", stderr)
             case .failed:
-                fputs("error: registration failed — ensure you're signed into iCloud\n", stderr)
+                fputs("error: registration failed — ensure your passkey provider is available\n", stderr)
             case .notHandled:
                 fputs("error: registration not handled — Associated Domains may not be configured\n", stderr)
-                fputs("  The AASA file at tapkey.jul.sh may not be cached yet (takes up to 24h).\n", stderr)
+                fputs("  The AASA file at tapkey.jul.sh may not be cached yet.\n", stderr)
             default:
                 fputs("error: registration failed: \(error.localizedDescription)\n", stderr)
             }
@@ -527,14 +591,16 @@ class RegistrationDelegate: NSObject, ASAuthorizationControllerDelegate {
 // MARK: - Assertion Delegate
 
 class AssertionDelegate: NSObject, ASAuthorizationControllerDelegate {
-    let mode: AppDelegate.AssertionMode
-    let name: String
-    let format: OutputFormat
+    let command: AppDelegate.AssertionCommand
+    let selection: AppDelegate.CredentialSelection
+    let retryWithoutStoredCredential: (() -> Void)?
 
-    init(mode: AppDelegate.AssertionMode, name: String, format: OutputFormat) {
-        self.mode = mode
-        self.name = name
-        self.format = format
+    init(command: AppDelegate.AssertionCommand,
+         selection: AppDelegate.CredentialSelection,
+         retryWithoutStoredCredential: (() -> Void)?) {
+        self.command = command
+        self.selection = selection
+        self.retryWithoutStoredCredential = retryWithoutStoredCredential
     }
 
     func authorizationController(controller: ASAuthorizationController,
@@ -552,27 +618,33 @@ class AssertionDelegate: NSObject, ASAuthorizationControllerDelegate {
                 exit(1)
             }
 
-            let rawKey = deriveRawKey(from: prfOutput.first, name: name)
+            do {
+                try cacheCredentialIDIfNeeded(credential.credentialID)
+            } catch {
+                fputs("error: failed to cache credential: \(error.localizedDescription)\n", stderr)
+                exit(1)
+            }
 
-            switch mode {
-            case .derive:
-                if format == .raw {
+            let rawKey = deriveRawKey(from: prfOutput.first, name: keyName(for: command))
+
+            switch command {
+            case .derive(let options):
+                if options.format == .raw {
                     FileHandle.standardOutput.write(rawKey)
                 } else {
-                    let output = formatKey(rawKey, format: format)
-                    // SSH format already includes trailing newline
-                    if format == .ssh {
+                    let output = formatKey(rawKey, format: options.format)
+                    if options.format == .ssh {
                         print(output, terminator: "")
                     } else {
                         print(output)
                     }
                 }
-            case .publicKey:
-                if format == .raw {
-                    fputs("error: --format raw not supported for public-key\n", stderr)
+            case .publicKey(let options):
+                if options.format == .raw {
+                    fputs("error: --format raw is not supported for public-key\n", stderr)
                     exit(1)
                 }
-                print(formatPublicKey(rawKey, format: format))
+                print(formatPublicKey(rawKey, format: options.format))
             }
         } else {
             fputs("error: tapkey requires macOS 15.0 or later\n", stderr)
@@ -592,8 +664,19 @@ class AssertionDelegate: NSObject, ASAuthorizationControllerDelegate {
             case .failed:
                 fputs("error: authentication failed — biometric or passkey authentication may have failed\n", stderr)
             case .notHandled:
-                fputs("error: not handled — credential may not be available on this device\n", stderr)
-                fputs("  If you registered on another device, ensure your passkey provider has synced.\n", stderr)
+                switch selection {
+                case .stored:
+                    if let retryWithoutStoredCredential {
+                        fputs("Stored credential selection was not available on this Mac. Retrying with discoverable passkeys...\n", stderr)
+                        retryWithoutStoredCredential()
+                        return
+                    }
+                    fputs("error: stored credential is not available on this Mac\n", stderr)
+                case .discoverable:
+                    fputs("error: no tapkey passkey is available on this Mac\n", stderr)
+                    fputs("  If you created one elsewhere, wait for your passkey provider to sync.\n", stderr)
+                    fputs("  Otherwise run 'tapkey register' to create one.\n", stderr)
+                }
             default:
                 fputs("error: authentication failed: \(error.localizedDescription)\n", stderr)
             }
@@ -602,12 +685,19 @@ class AssertionDelegate: NSObject, ASAuthorizationControllerDelegate {
         }
         exit(1)
     }
+
+    private func keyName(for command: AppDelegate.AssertionCommand) -> String {
+        switch command {
+        case .derive(let options), .publicKey(let options):
+            return options.name
+        }
+    }
 }
 
 // MARK: - Main
 
 let arguments = Arguments.parse()
 let app = NSApplication.shared
-let appDelegate = AppDelegate(arguments: arguments)
+let appDelegate = AppDelegate(command: arguments.command)
 app.delegate = appDelegate
 app.run()
