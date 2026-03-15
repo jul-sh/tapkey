@@ -165,7 +165,7 @@ enum SSHKey {
 // MARK: - Config
 
 struct Config {
-    static let relyingParty = "prf-cli.jul.sh"
+    static let relyingParty = "prf.jul.sh"
     static let registrationName = "prf-cli"
     static let registrationUserID = Data("prf-cli-user".utf8)
     static let hkdfInfo = Data("prf-cli:key".utf8)

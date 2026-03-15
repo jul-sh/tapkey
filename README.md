@@ -89,7 +89,7 @@ prf-cli public-key --name ssh --format ssh
 
 ## How It Works
 
-1. `prf-cli register` creates a passkey scoped to the WebAuthn relying party `prf-cli.jul.sh`. The passkey lives in your chosen passkey provider (e.g. iCloud Keychain).
+1. `prf-cli register` creates a passkey scoped to the WebAuthn relying party `prf.jul.sh`. The passkey lives in your chosen passkey provider (e.g. iCloud Keychain).
 2. `prf-cli derive` performs a WebAuthn assertion with the PRF extension. The PRF input is `SHA256("prf-cli:prf:<name>")`, so each `--name` produces a different PRF output directly from the passkey.
 3. The PRF output is passed through HKDF-SHA256 to derive the final 32-byte key.
 4. The result is formatted as raw bytes, hex, base64, an `age` secret key, or an OpenSSH Ed25519 key.
@@ -102,9 +102,9 @@ prf-cli register --replace
 
 ### Relying party domain
 
-The release build uses `prf-cli.jul.sh` as the WebAuthn relying party. This domain hosts an [Associated Domains](https://developer.apple.com/documentation/bundleresources/entitlements/com_apple_developer_associated-domains) file (`.well-known/apple-app-site-association`) that tells macOS which app bundle is authorized to use passkeys for that origin.
+The release build uses `prf.jul.sh` as the WebAuthn relying party. This domain hosts an [Associated Domains](https://developer.apple.com/documentation/bundleresources/entitlements/com_apple_developer_associated-domains) file (`.well-known/apple-app-site-association`) that tells macOS which app bundle is authorized to use passkeys for that origin.
 
-The domain is only an identifier — when using prf-cli locally, all key derivation happens on your device and no secret material is sent to `prf-cli.jul.sh`. If the domain were to become unavailable or its Associated Domains file were revoked, the release build would lose access to its passkeys (breaking functionality), but keys already derived would be unaffected.
+The domain is only an identifier — when using prf-cli locally, all key derivation happens on your device and no secret material is sent to `prf.jul.sh`. If the domain were to become unavailable or its Associated Domains file were revoked, the release build would lose access to its passkeys (breaking functionality), but keys already derived would be unaffected.
 
 However, because the PRF salts and HKDF parameters are deterministic and public, a hostile operator of the relying party domain could serve a web page that requests a WebAuthn PRF assertion with the same salts prf-cli uses. If you visited that page and approved the passkey prompt in your browser, the page's JavaScript would receive the PRF output and could derive the same keys. This requires active user interaction (you'd see a passkey authentication prompt), but there's no visual indication that approving it exposes your derived keys.
 
