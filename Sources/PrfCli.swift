@@ -97,7 +97,7 @@ enum Bech32 {
 // MARK: - OpenSSH Ed25519 Key Formatting
 
 enum SSHKey {
-    private static let checkIntLabel = Data("tapkey:ssh-checkint".utf8)
+    private static let checkIntLabel = Data("prf-cli:ssh-checkint".utf8)
 
     static func privateKeyPEM(seed: Data) -> String {
         let privateKey = try! Curve25519.Signing.PrivateKey(rawRepresentation: seed)
@@ -165,17 +165,17 @@ enum SSHKey {
 // MARK: - Config
 
 struct Config {
-    static let relyingParty = "tapkey.jul.sh"
+    static let relyingParty = "prf-cli.jul.sh"
     static let registrationName = "prf-cli"
-    static let registrationUserID = Data("tapkey-user".utf8)
-    static let hkdfInfo = Data("tapkey:key".utf8)
+    static let registrationUserID = Data("prf-cli-user".utf8)
+    static let hkdfInfo = Data("prf-cli:key".utf8)
 
     static let configDir = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/prf-cli")
     static let credentialFile = configDir.appendingPathComponent("credential.json")
 
     static func prfSalt(for name: String) -> Data {
-        let input = Data("tapkey:prf:\(name)".utf8)
+        let input = Data("prf-cli:prf:\(name)".utf8)
         return Data(SHA256.hash(data: input))
     }
 }

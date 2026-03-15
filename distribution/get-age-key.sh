@@ -12,11 +12,7 @@ if [ -n "$AGE_SECRET_KEY" ]; then
     printf '%s' "$AGE_SECRET_KEY"
 elif KEY=$(security find-generic-password -s prf-cli -a AGE_SECRET_KEY -w 2>/dev/null); then
     printf '%s' "$KEY"
-elif KEY=$(security find-generic-password -s tapkey -a AGE_SECRET_KEY -w 2>/dev/null); then
-    printf '%s' "$KEY"
 elif command -v prf-cli >/dev/null 2>&1 && KEY=$(prf-cli derive --name age --format age 2>/dev/null); then
-    printf '%s' "$KEY"
-elif command -v tapkey >/dev/null 2>&1 && KEY=$(tapkey derive --name age --format age 2>/dev/null); then
     printf '%s' "$KEY"
 else
     echo "Error: AGE_SECRET_KEY not set and not found in Keychain or via prf-cli" >&2
