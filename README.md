@@ -1,8 +1,10 @@
 # prf-cli
 
-A macOS command-line tool that derives SSH keys, `age` identities, and other secrets from passkeys using the WebAuthn PRF extension.
+prf-cli is a macOS command-line tool that lets you derive the same SSH key, `age` identity, or other secret on any Mac where you can unlock the same passkey.
 
-Same passkey, same `--name`, same derived key. Different names derive different keys. Works on any Mac where you can unlock the same passkey.
+Passkey providers sync passkeys across devices but usually do not sync arbitrary private keys like SSH keys. prf-cli bridges that gap by deriving the key locally using the WebAuthn PRF extension, without manually copying private key files between machines.
+
+Same passkey, same `--name`, same derived key. Different names derive different keys.
 
 ## Install
 
