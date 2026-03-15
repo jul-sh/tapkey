@@ -20,6 +20,8 @@
             cargo
             rustfmt
             clippy
+            swiftPackages.swift
+            swiftPackages.swiftpm
           ];
 
           shellHook = ''

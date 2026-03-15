@@ -35,7 +35,7 @@ The verification step requires the [GitHub CLI](https://cli.github.com/). It is 
 
 ### From source
 
-Requires macOS 15+, a Rust toolchain, Xcode Command Line Tools (for Swift and codesigning), and a [paid Apple Developer Program membership](https://developer.apple.com/programs/) for the Associated Domains entitlement. If you do not have one, use the release build instead; releases are already signed and notarized with my Apple Developer account.
+Requires macOS 15+, [Nix](https://nixos.org/download/), and a [paid Apple Developer Program membership](https://developer.apple.com/programs/) for the Associated Domains entitlement. If you do not have one, use the release build instead; releases are already signed and notarized with my Apple Developer account. The Nix flake provides the full toolchain (Rust, Swift, etc.).
 
 ```bash
 git clone https://github.com/jul-sh/tapkey.git
