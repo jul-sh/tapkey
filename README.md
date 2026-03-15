@@ -89,7 +89,7 @@ prf-cli public-key --name ssh --format ssh
 
 1. `prf-cli register` creates a passkey scoped to the WebAuthn relying party `tapkey.jul.sh`. The passkey lives in your chosen passkey provider (e.g. iCloud Keychain).
 2. `prf-cli derive` performs a WebAuthn assertion with the PRF extension. The PRF input is `SHA256("tapkey:prf:<name>")`, so each `--name` produces a different PRF output directly from the passkey.
-3. The PRF output is expanded with HKDF-SHA256 to produce 32 bytes of key material.
+3. The PRF output is passed through HKDF-SHA256 to derive the final 32-byte key.
 4. The result is formatted as raw bytes, hex, base64, an `age` secret key, or an OpenSSH Ed25519 key.
 
 Replace the passkey root (rotates all derived keys):
