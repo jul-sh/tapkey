@@ -12,8 +12,6 @@ if [ -n "$AGE_SECRET_KEY" ]; then
     printf '%s' "$AGE_SECRET_KEY"
 elif KEY=$(security find-generic-password -s tapkey -a AGE_SECRET_KEY -w 2>/dev/null); then
     printf '%s' "$KEY"
-elif KEY=$(security find-generic-password -s clipkitty -a AGE_SECRET_KEY -w 2>/dev/null); then
-    printf '%s' "$KEY"
 elif command -v tapkey >/dev/null 2>&1 && KEY=$(tapkey derive tapkey --format age 2>/dev/null); then
     printf '%s' "$KEY"
 else
