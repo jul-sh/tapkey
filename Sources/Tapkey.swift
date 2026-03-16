@@ -446,14 +446,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
-        anchorWindow.center()
-        anchorWindow.orderFrontRegardless()
-
         switch command {
         case .version:
             print("tapkey \(currentTapkeyVersion())")
             exit(0)
+        default:
+            break
+        }
+
+        NSApp.setActivationPolicy(.regular)
+        anchorWindow.center()
+        anchorWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        switch command {
+        case .version:
+            fatalError("unreachable")
         case .register(let options):
             performRegistration(options: options)
         case .derive(let options):
