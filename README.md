@@ -1,5 +1,9 @@
 # tapkey
 
+<p align="center">
+  <img src="tapkey.icon/Assets/ChatGPT Image Mar 15, 2026 at 10_01_47 PM-2.png" width="128" alt="tapkey icon" />
+</p>
+
 ⚠️ Pre-release experimental software. The design is still in flux, breaking changes should be expected for now, and it has not yet had a security review.
 
 tapkey is a tiny macOS app that lets you recover the same SSH key, `age` identity, or app secret on any Mac where you can unlock the same passkey.
@@ -67,13 +71,13 @@ tapkey derive --format age
 tapkey derive --format ssh
 ```
 
-Use `--name` to derive different keys from the same passkey:
+Use a name to derive different keys from the same passkey:
 
 ```bash
-tapkey derive --name backup
-tapkey derive --name deploy
-tapkey derive --name age --format age
-tapkey derive --name ssh --format ssh
+tapkey derive backup
+tapkey derive deploy
+tapkey derive age --format age
+tapkey derive ssh --format ssh
 ```
 
 The default name is `default`.
@@ -81,28 +85,28 @@ The default name is `default`.
 Get the public key for a derived key:
 
 ```bash
-tapkey public-key --name ssh --format ssh
+tapkey public-key ssh --format ssh
 ```
 
 ### age
 
 ```bash
-echo "secret" | age -r "$(tapkey public-key --name age)" > secret.age
-age -d -i <(tapkey derive --name age --format age) secret.age
+echo "secret" | age -r "$(tapkey public-key age)" > secret.age
+age -d -i <(tapkey derive age --format age) secret.age
 ```
 
 ### SSH
 
 ```bash
-tapkey derive --name ssh --format ssh > ~/.ssh/id_tapkey
+tapkey derive ssh --format ssh > ~/.ssh/id_tapkey
 chmod 600 ~/.ssh/id_tapkey
-tapkey public-key --name ssh --format ssh
+tapkey public-key ssh --format ssh
 ```
 
 ## How It Works
 
 1. `tapkey register` creates a passkey for the relying party `tapkey.jul.sh`. The passkey lives in your chosen passkey provider.
-2. `tapkey derive` performs a WebAuthn assertion using the PRF extension. The PRF input is `SHA256("tapkey:prf:<name>")`, so each `--name` requests a different PRF output directly from the passkey.
+2. `tapkey derive` performs a WebAuthn assertion using the PRF extension. The PRF input is `SHA256("tapkey:prf:<name>")`, so each name requests a different PRF output directly from the passkey.
 3. The PRF output is expanded with HKDF-SHA256 using a fixed tapkey info string to produce 32 bytes of key material.
 4. The result is formatted as raw bytes, hex, base64, an `age` secret key, or an OpenSSH Ed25519 key.
 
@@ -122,7 +126,7 @@ tapkey's security model is simple: the passkey is the root secret.
 - tapkey does not sync or cache derived keys itself. It derives on demand, writes to stdout, and exits.
 - If you save the output, pipe it into another tool, or import it into an agent, that destination now holds the key and must be trusted accordingly.
 - The local config file stores only the credential ID used to select the passkey. It is not secret key material.
-- The PRF inputs are public and derived from `--name`. They provide stable derivation and domain separation, not secrecy.
+- The PRF inputs are public and derived from the key name. They provide stable derivation and domain separation, not secrecy.
 - Replacing the registered passkey changes every key derived from it. Treat the passkey as the root of your derived identities.
 
 In other words: tapkey is not a vault. It is a deterministic derivation tool built on top of passkey security.

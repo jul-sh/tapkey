@@ -343,14 +343,6 @@ struct Arguments {
         var index = 0
         while index < arguments.count {
             switch arguments[index] {
-            case "--name":
-                guard index + 1 < arguments.count else {
-                    fputs("error: --name requires a value\n", stderr)
-                    exit(1)
-                }
-                index += 1
-                name = arguments[index]
-                validateKeyName(name)
             case "--format":
                 guard index + 1 < arguments.count else {
                     fputs("error: --format requires a value (hex, base64, age, raw, ssh)\n", stderr)
@@ -363,8 +355,12 @@ struct Arguments {
                 }
                 format = parsedFormat
             default:
-                fputs("error: unknown option '\(arguments[index])'\n", stderr)
-                exit(1)
+                if arguments[index].hasPrefix("-") {
+                    fputs("error: unknown option '\(arguments[index])'\n", stderr)
+                    exit(1)
+                }
+                name = arguments[index]
+                validateKeyName(name)
             }
             index += 1
         }
@@ -389,23 +385,23 @@ struct Arguments {
 
     static func printUsage() {
         fputs("""
-        Usage: tapkey <command> [options]
+        Usage: tapkey <command> [name] [options]
 
         Commands:
           register [--replace]             Create the passkey root
-          derive                           Derive key material from your passkey
-          public-key                       Show the public key for a derived key
+          derive [name]                    Derive key material from your passkey
+          public-key [name]                Show the public key for a derived key
 
         Options:
-          --name <name>                    Key name for domain separation (default: "default")
           --format <fmt>                   Output format: hex, base64, age, raw, ssh
           --replace                        Replace the locally registered passkey root
           --version                        Show version
 
         Examples:
           tapkey register
-          tapkey derive --name ssh --format ssh
-          tapkey public-key --name ssh --format ssh
+          tapkey derive
+          tapkey derive ssh --format ssh
+          tapkey public-key ssh --format ssh
           tapkey register --replace
 
 """, stderr)
