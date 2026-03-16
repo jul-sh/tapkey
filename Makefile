@@ -4,9 +4,16 @@ BIN = $(BUNDLE)/Contents/MacOS/tapkey
 IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application" && echo "Developer ID Application" || echo "-")
 PROVISIONING_PROFILE ?=
 
-.PHONY: all build sign notarize setup-signing install verify test clean
+.PHONY: all build sign notarize setup-signing install verify package test clean
 
 all: build sign notarize
+
+package: setup-signing build sign verify notarize
+	xattr -cr $(BUNDLE)
+	@SHA=$$(git rev-parse --short=7 HEAD) && \
+		ZIP_NAME="tapkey-$${SHA}-arm64.zip" && \
+		ditto -c -k --keepParent $(BUNDLE) "$$ZIP_NAME" && \
+		echo "Packaged $$ZIP_NAME"
 
 setup-signing:
 	@./distribution/setup-signing.sh
