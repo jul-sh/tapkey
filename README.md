@@ -2,7 +2,7 @@
 
 <img src="tapkey.icon/Assets/ChatGPT Image Mar 15, 2026 at 10_01_47 PM-2.png" width="128" alt="tapkey icon" />
 
-tapkey is a tiny macOS app that lets you recover the same SSH key, `age` identity, or app secret on any Mac where you can unlock the same passkey.
+tapkey is a tiny macOS CLI that lets you recover the same SSH key, `age` identity, or app secret on any Mac where you can unlock the same passkey.
 
 Passkey providers sync passkeys. They usually do not sync arbitrary private keys such as SSH keys. tapkey bridges that gap by deriving the key locally after passkey authentication, without manually copying private key files between machines.
 
@@ -54,17 +54,7 @@ tapkey register
 Then derive key material:
 
 ```bash
-tapkey derive
-```
-
-Derive key material in different formats:
-
-```bash
-tapkey derive
-tapkey derive --format base64
-tapkey derive --format raw
-tapkey derive --format age
-tapkey derive --format ssh
+tapkey derive [name]
 ```
 
 Use a name to derive different keys from the same passkey:
@@ -72,23 +62,31 @@ Use a name to derive different keys from the same passkey:
 ```bash
 tapkey derive backup
 tapkey derive deploy
-tapkey derive age --format age
-tapkey derive ssh --format ssh
+# The default name is `default`.
 ```
 
-The default name is `default`.
-
-Get the public key for a derived key:
+Derive key material in different formats:
 
 ```bash
-tapkey public-key ssh --format ssh
+tapkey derive myBase64Key --format base64
+tapkey derive myRawKey --format raw
+tapkey derive smolSecrets --format age
+tapkey derive smolSshKey --format ssh
+```
+
+Get the public key for a derived key, e.g. a key named `smolSshKey`:
+
+```bash
+tapkey public-key smolSshKey --format ssh
 ```
 
 ### age
 
+E.g. using an age key called `smolSecrets`
+
 ```bash
-echo "secret" | age -r "$(tapkey public-key age)" > secret.age
-age -d -i <(tapkey derive age --format age) secret.age
+echo "secret" | age -r "$(tapkey public-key smolSecrets)" > secret.age
+age -d -i <(tapkey derive smolSecrets --format age) secret.age
 ```
 
 ### SSH
