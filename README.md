@@ -62,6 +62,7 @@ Use a name to derive different keys from the same passkey:
 ```bash
 tapkey derive backup
 tapkey derive deploy
+# The default name is `default`.
 ```
 
 Derive key material in different formats:
@@ -72,8 +73,6 @@ tapkey derive myRawKey --format raw
 tapkey derive smolSecrets --format age
 tapkey derive smolSshKey --format ssh
 ```
-
-The default name is `default`.
 
 Get the public key for a derived key, e.g. a key named `smolSshKey`:
 
