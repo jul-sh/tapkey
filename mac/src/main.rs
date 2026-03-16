@@ -23,7 +23,7 @@ enum Cmd {
     /// Derive key material from your passkey
     Derive {
         /// Key name for domain separation
-        #[arg(long, default_value = "default")]
+        #[arg(default_value = "default")]
         name: String,
         /// Output format
         #[arg(long, default_value = "hex")]
@@ -32,7 +32,7 @@ enum Cmd {
     /// Show the public key for a derived key
     PublicKey {
         /// Key name for domain separation
-        #[arg(long, default_value = "default")]
+        #[arg(default_value = "default")]
         name: String,
         /// Output format
         #[arg(long, default_value = "age")]

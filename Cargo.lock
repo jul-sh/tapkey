@@ -993,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "tapkey"
-version = "0.1.2"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",

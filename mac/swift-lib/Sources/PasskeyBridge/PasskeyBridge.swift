@@ -148,11 +148,14 @@ private class PasskeyDelegate: NSObject, ASAuthorizationControllerDelegate,
 
 private func setupApp() -> (NSApplication, NSWindow) {
     let app = NSApplication.shared
-    app.setActivationPolicy(.accessory)
+    app.setActivationPolicy(.regular)
     let window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
         styleMask: [], backing: .buffered, defer: true
     )
+    window.center()
+    window.makeKeyAndOrderFront(nil)
+    app.activate(ignoringOtherApps: true)
     return (app, window)
 }
 
