@@ -70,7 +70,7 @@ Derive key material in different formats:
 tapkey derive myBase64Key --format base64
 tapkey derive myRawKey --format raw
 tapkey derive anAgeKey --format age
-tapkey derive anSshKet --format ssh
+tapkey derive smolSshKey --format ssh
 ```
 
 The default name is `default`.
@@ -78,7 +78,7 @@ The default name is `default`.
 Get the public key for a derived key:
 
 ```bash
-tapkey public-key ssh --format ssh
+tapkey public-key smolSshKey --format ssh
 ```
 
 ### age
