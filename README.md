@@ -54,17 +54,7 @@ tapkey register
 Then derive key material:
 
 ```bash
-tapkey derive
-```
-
-Derive key material in different formats:
-
-```bash
-tapkey derive
-tapkey derive --format base64
-tapkey derive --format raw
-tapkey derive --format age
-tapkey derive --format ssh
+tapkey derive [name]
 ```
 
 Use a name to derive different keys from the same passkey:
@@ -72,8 +62,15 @@ Use a name to derive different keys from the same passkey:
 ```bash
 tapkey derive backup
 tapkey derive deploy
-tapkey derive age --format age
-tapkey derive ssh --format ssh
+```
+
+Derive key material in different formats:
+
+```bash
+tapkey derive myBase64Key --format base64
+tapkey derive myRawKey --format raw
+tapkey derive anAgeKey --format age
+tapkey derive anSshKet --format ssh
 ```
 
 The default name is `default`.
