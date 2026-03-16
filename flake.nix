@@ -26,6 +26,7 @@
           # lacks the macOS 15 SDK needed for AuthenticationServices PRF.
           shellHook = ''
             export PATH="/usr/bin:$PATH"
+            unset SDKROOT DEVELOPER_DIR
             echo "tapkey dev shell"
             echo "  make build   - build macOS app"
             echo "  make test    - run tests"
