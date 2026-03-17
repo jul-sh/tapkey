@@ -4,8 +4,6 @@ export interface Env {
 
 const CORS_ORIGINS = new Set([
   "https://tapkey.jul.sh",
-  "http://localhost:8080",
-  "http://localhost:3000",
 ]);
 
 function corsHeaders(request: Request): HeadersInit {
