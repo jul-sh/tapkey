@@ -1,4 +1,5 @@
 mod auth;
+mod nearby;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use std::io::Write;
@@ -36,7 +37,7 @@ enum Cmd {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-enum Format {
+pub(crate) enum Format {
     Hex,
     Base64,
     Age,
@@ -49,22 +50,34 @@ fn main() {
 
     match cli.command {
         Cmd::Register => {
-            auth::start_registration(Box::new(|outcome| match outcome {
-                auth::RegistrationOutcome::Success { .. } => {
-                    eprintln!("Passkey registered successfully.");
-                    std::process::exit(0);
-                }
-                auth::RegistrationOutcome::Error(msg) => die(&msg),
-            }));
+            if cfg!(target_os = "macos") {
+                auth::start_registration(Box::new(|outcome| match outcome {
+                    auth::RegistrationOutcome::Success { .. } => {
+                        eprintln!("Passkey registered successfully.");
+                        std::process::exit(0);
+                    }
+                    auth::RegistrationOutcome::Error(msg) => die(&msg),
+                }));
+            } else {
+                nearby::start_nearby_flow("register", "default", Format::Hex, false);
+            }
         }
         Cmd::Derive { name, format } => {
-            start_assertion(&name, format, false);
+            if cfg!(target_os = "macos") {
+                start_assertion(&name, format, false);
+            } else {
+                nearby::start_nearby_flow("assert", &name, format, false);
+            }
         }
         Cmd::PublicKey { name, format } => {
             if matches!(format, Format::Raw) {
                 die("--format raw is not supported for public-key");
             }
-            start_assertion(&name, format, true);
+            if cfg!(target_os = "macos") {
+                start_assertion(&name, format, true);
+            } else {
+                nearby::start_nearby_flow("assert", &name, format, true);
+            }
         }
     }
 }
@@ -81,7 +94,7 @@ fn start_assertion(name: &str, format: Format, is_public: bool) {
     );
 }
 
-fn emit_key(prf_output: &[u8], format: Format, is_public: bool) {
+pub(crate) fn emit_key(prf_output: &[u8], format: Format, is_public: bool) {
     let raw_key = match tapkey_core::derive_raw_key(prf_output) {
         Ok(k) => k,
         Err(e) => die(&format!("key derivation failed: {e}")),
@@ -126,7 +139,7 @@ fn emit_key(prf_output: &[u8], format: Format, is_public: bool) {
     }
 }
 
-fn die(msg: &str) -> ! {
+pub(crate) fn die(msg: &str) -> ! {
     eprintln!("error: {msg}");
     std::process::exit(1);
 }

@@ -5,3 +5,5 @@ target/
 mac/swift-lib/.build/
 .DS_Store
 *.zip
+.mcp.json
+.wrangler/
