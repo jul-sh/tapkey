@@ -15,11 +15,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Create the passkey root
-    Register {
-        /// Use QR code flow for nearby device authentication
-        #[arg(long)]
-        nearby: bool,
-    },
+    Register,
     /// Derive key material from your passkey
     Derive {
         /// Key name for domain separation
@@ -28,9 +24,6 @@ enum Cmd {
         /// Output format
         #[arg(long, default_value = "hex")]
         format: Format,
-        /// Use QR code flow for nearby device authentication
-        #[arg(long)]
-        nearby: bool,
     },
     /// Show the public key for a derived key
     PublicKey {
@@ -40,9 +33,6 @@ enum Cmd {
         /// Output format
         #[arg(long, default_value = "age")]
         format: Format,
-        /// Use QR code flow for nearby device authentication
-        #[arg(long)]
-        nearby: bool,
     },
 }
 
@@ -59,35 +49,35 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Cmd::Register { nearby } => {
-            if nearby {
+        Cmd::Register => {
+            if cfg!(target_os = "macos") {
+                auth::start_registration(Box::new(|outcome| match outcome {
+                    auth::RegistrationOutcome::Success { .. } => {
+                        eprintln!("Passkey registered successfully.");
+                        std::process::exit(0);
+                    }
+                    auth::RegistrationOutcome::Error(msg) => die(&msg),
+                }));
+            } else {
                 nearby::start_nearby_flow("register", "default", Format::Hex, false);
-                return;
             }
-            auth::start_registration(Box::new(|outcome| match outcome {
-                auth::RegistrationOutcome::Success { .. } => {
-                    eprintln!("Passkey registered successfully.");
-                    std::process::exit(0);
-                }
-                auth::RegistrationOutcome::Error(msg) => die(&msg),
-            }));
         }
-        Cmd::Derive { name, format, nearby } => {
-            if nearby || !cfg!(target_os = "macos") {
+        Cmd::Derive { name, format } => {
+            if cfg!(target_os = "macos") {
+                start_assertion(&name, format, false);
+            } else {
                 nearby::start_nearby_flow("assert", &name, format, false);
-                return;
             }
-            start_assertion(&name, format, false);
         }
-        Cmd::PublicKey { name, format, nearby } => {
+        Cmd::PublicKey { name, format } => {
             if matches!(format, Format::Raw) {
                 die("--format raw is not supported for public-key");
             }
-            if nearby || !cfg!(target_os = "macos") {
+            if cfg!(target_os = "macos") {
+                start_assertion(&name, format, true);
+            } else {
                 nearby::start_nearby_flow("assert", &name, format, true);
-                return;
             }
-            start_assertion(&name, format, true);
         }
     }
 }

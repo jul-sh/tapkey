@@ -82,13 +82,7 @@ tapkey public-key smolSshKey --format ssh
 
 ### Linux / non-macOS
 
-On systems without native passkey support, `tapkey derive` and `tapkey public-key` automatically show a QR code. Scan it on your phone, approve the passkey, and the key is printed to stdout as usual.
-
-```bash
-tapkey derive myKey
-tapkey public-key smolSshKey --format ssh
-tapkey register --nearby   # registration still requires --nearby
-```
+On systems without native passkey support, all commands automatically show a QR code. Scan it on your phone, approve the passkey, and the output is printed to stdout as usual. The same commands work everywhere — no extra flags needed.
 
 ### age
 
