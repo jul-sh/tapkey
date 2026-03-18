@@ -8,7 +8,6 @@ on:
       - .github/workflows/pages.yml
       - .well-known/**
       - web/**
-      - README.md
   workflow_dispatch:
 
 permissions:
@@ -31,25 +30,10 @@ jobs:
 
       - name: Prepare site
         run: |
-          sudo apt-get install -y pandoc
-
           mkdir -p _site/.well-known
           cp .well-known/apple-app-site-association _site/.well-known/
           cp web/CNAME _site/
-          cp web/*.js web/*.css _site/ 2>/dev/null || true
-
-          # Convert README to HTML fragment, strip the icon img tag (not served)
-          pandoc README.md --from gfm --to html5 --no-highlight \
-            | sed 's|<img[^>]*macos/tapkey.icon[^>]*>||' \
-            > /tmp/readme.html
-
-          # Inject into template
-          sed '/<!-- CONTENT -->/r /tmp/readme.html' web/index.html \
-            | sed '/<!-- CONTENT -->/d' \
-            > _site/index.html
-
-          # Copy nearby page directly
-          cp web/nearby.html _site/nearby.html 2>/dev/null || true
+          cp web/*.html web/*.js web/*.css _site/ 2>/dev/null || true
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
