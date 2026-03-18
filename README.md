@@ -1,8 +1,6 @@
-# tapkey
+# Passkeys that turn into real keys.
 
 <img src="macos/tapkey.icon/Assets/icon.png" width="128" alt="tapkey icon" />
-
-**Passkeys that turn into real keys.**
 
 tapkey is a smol CLI that lets you recover the same SSH key, `age` identity, or app secret on any machine where you can unlock the same passkey.
 
