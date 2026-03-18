@@ -23,6 +23,16 @@ Releases are built in CI with [build attestation](https://docs.github.com/en/act
 gh attestation verify tapkey-*.zip -R jul-sh/tapkey
 ```
 
+## Requirements
+
+### macOS (native passkey)
+- macOS 15.0 or later
+- Apple Silicon (`arm64`)
+- A passkey provider with PRF support (like Apple's built-in Password Manager)
+
+### Linux / other platforms (QR relay)
+- A phone with a passkey provider that supports the PRF extension
+
 ## Usage
 
 Create the passkey once:
@@ -60,19 +70,6 @@ Get the public key for a derived key, e.g. a key named `smolSshKey`:
 tapkey public-key smolSshKey --format ssh
 ```
 
-### Linux / non-macOS
-
-On systems without native passkey support, all commands automatically show a QR code. Scan it on your phone, approve the passkey, and the output is printed to stdout as usual. The same commands work everywhere — no extra flags needed.
-
-### age
-
-E.g. using an age key called `smolSecrets`
-
-```bash
-echo "secret" | age -r "$(tapkey public-key smolSecrets)" > secret.age
-age -d -i <(tapkey derive smolSecrets --format age) secret.age
-```
-
 ## How It Works
 
 1. `tapkey register` creates a passkey for the relying party `tapkey.jul.sh`. The passkey lives in your chosen passkey provider.
@@ -104,16 +101,6 @@ When tapkey uses the QR relay flow, additional trust considerations apply:
 
 In other words: tapkey is not a vault. It is a deterministic derivation tool built on top of passkey security.
 
-## Requirements
-
-### macOS (native passkey)
-- macOS 15.0 or later
-- Apple Silicon (`arm64`)
-- A passkey provider with PRF support (like Apple's built-in Password Manager)
-
-### Linux / other platforms (QR relay)
-- A phone with a passkey provider that supports the PRF extension
-
 ## Tips
 
 ### Storing a derived key in macOS Keychain
@@ -124,32 +111,13 @@ If you want to avoid re-authenticating every time, you can store a derived key i
 security add-generic-password -s tapkey -a AGE_SECRET_KEY -w "$(tapkey derive myKey --format age)"
 ```
 
-## Development
+### Usage with age
+
+E.g. using an age key called `smolSecrets`
 
 ```bash
-# Enter dev shell
-nix develop
-
-# Run tests
-make test
-
-# Build and sign (macOS)
-make
-
-# Build, sign, and install (macOS)
-make install
-
-# Clean
-make clean
-```
-
-### Encrypting Secrets For CI
-
-```bash
-echo -n "secret-value" | age -R distribution/secrets/age-recipients.txt -o distribution/secrets/SECRET_NAME.age
-
-AGE_SECRET_KEY=$(./distribution/get-age-key.sh)
-echo "$AGE_SECRET_KEY" | age -d -i - distribution/secrets/SECRET_NAME.age
+echo "secret" | age -r "$(tapkey public-key smolSecrets)" > secret.age
+age -d -i <(tapkey derive smolSecrets --format age) secret.age
 ```
 
 ## License
