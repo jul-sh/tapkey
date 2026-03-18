@@ -12,7 +12,13 @@ On systems without native passkey support (like Linux), tapkey shows a QR code y
 
 ## Install
 
-Download the latest binary from [releases](https://github.com/jul-sh/tapkey/releases) and place it in your PATH. Release binaries are built in CI with [build attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations).
+```bash
+gh release download --repo jul-sh/tapkey --pattern 'tapkey-*' && \
+  gh attestation verify tapkey-*.zip -R jul-sh/tapkey && \
+  unzip tapkey-*.zip -d ~/.local/bin
+```
+
+Requires the [GitHub CLI](https://cli.github.com/). The second line verifies that the binary was built by CI from this repo's source code.
 
 ### From source
 
