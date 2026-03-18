@@ -1,4 +1,4 @@
-#[cfg(not(feature = "native-macos"))]
+#[cfg(not(feature = "native-passkey"))]
 mod nearby;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -60,7 +60,7 @@ fn main() {
     }
 }
 
-#[cfg(feature = "native-macos")]
+#[cfg(feature = "native-passkey")]
 fn register() {
     tapkey_macos::start_registration(Box::new(|outcome| match outcome {
         tapkey_macos::RegistrationOutcome::Success => {
@@ -71,12 +71,12 @@ fn register() {
     }));
 }
 
-#[cfg(not(feature = "native-macos"))]
+#[cfg(not(feature = "native-passkey"))]
 fn register() {
     nearby::start_nearby_flow("register", "default", Format::Hex, false);
 }
 
-#[cfg(feature = "native-macos")]
+#[cfg(feature = "native-passkey")]
 fn derive(name: &str, format: Format, is_public: bool) {
     tapkey_macos::start_assertion(
         name,
@@ -89,7 +89,7 @@ fn derive(name: &str, format: Format, is_public: bool) {
     );
 }
 
-#[cfg(not(feature = "native-macos"))]
+#[cfg(not(feature = "native-passkey"))]
 fn derive(name: &str, format: Format, is_public: bool) {
     nearby::start_nearby_flow("assert", name, format, is_public);
 }

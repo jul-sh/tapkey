@@ -20,7 +20,7 @@
           cargoLock.lockFile = ./Cargo.lock;
           # Only build the CLI crate; macos/ requires Swift and Apple SDKs.
           buildAndTestSubdir = "cli";
-          cargoBuildFlags = [ "-p" "tapkey" "--no-default-features" ];
+          cargoBuildFlags = [ "--no-default-features" ];
           doCheck = false;
           # Exclude macos crate from workspace (its build.rs needs Swift/Xcode)
           postPatch = ''

@@ -50,10 +50,8 @@ gh attestation verify tapkey-*.zip -R jul-sh/tapkey
 ```bash
 git clone https://github.com/jul-sh/tapkey.git
 cd tapkey
-cargo install --path cli
+make install
 ```
-
-On macOS, `make install` builds with code signing and creates a notarized app bundle. This requires macOS 15+, Xcode Command Line Tools, and a [paid Apple Developer Program membership](https://developer.apple.com/programs/) for the Associated Domains entitlement.
 
 ## Usage
 

@@ -8,8 +8,8 @@ name = "tapkey"
 path = "src/main.rs"
 
 [features]
-default = ["native-macos"]
-native-macos = ["tapkey-macos"]
+default = ["native-passkey"]
+native-passkey = ["tapkey-macos"]
 
 [dependencies]
 tapkey-core = { path = "../core" }
