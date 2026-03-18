@@ -52,7 +52,7 @@ Use a name to derive different keys from the same passkey:
 ```bash
 tapkey derive backup
 tapkey derive deploy
-# The default name is `default`.
+tapkey derive # The default name is `default`.
 ```
 
 Derive key material in different formats:
