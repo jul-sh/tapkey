@@ -13,10 +13,15 @@
         isDarwin = pkgs.stdenv.isDarwin;
 
         # Pre-built release binaries (built in CI with attestation)
+        # Updated automatically by the release workflow
         releases = {
           aarch64-darwin = {
             url = "https://github.com/jul-sh/tapkey/releases/download/4949215/tapkey-4949215-arm64.zip";
             hash = "sha256-p5DW9HPlUQDBWU51G6ZkYzMohV/EFCMVDAKDjyTQ980=";
+          };
+          x86_64-linux = {
+            url = "PLACEHOLDER";
+            hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
           };
         };
       in
@@ -31,9 +36,13 @@
             sourceRoot = ".";
             nativeBuildInputs = [ pkgs.unzip ];
             unpackPhase = "unzip $src";
-            installPhase = ''
+            installPhase = if isDarwin then ''
               mkdir -p $out/bin
               cp Tapkey.app/Contents/MacOS/tapkey $out/bin/tapkey
+            '' else ''
+              mkdir -p $out/bin
+              cp tapkey $out/bin/tapkey
+              chmod +x $out/bin/tapkey
             '';
           };
         };
