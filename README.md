@@ -111,6 +111,20 @@ In other words: tapkey is not a vault. It is a deterministic derivation tool bui
 
 ## Tips
 
+### Nix flake
+
+Add tapkey to a Nix shell using the pre-built release binary:
+
+```nix
+{
+  inputs.tapkey.url = "github:jul-sh/tapkey";
+
+  outputs = { tapkey, ... }: {
+    # add tapkey.packages.${system}.default to your buildInputs
+  };
+}
+```
+
 ### Storing a derived key in macOS Keychain
 
 If you want to avoid re-authenticating every time, you can store a derived key in the macOS Keychain:
