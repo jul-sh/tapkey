@@ -157,17 +157,6 @@ For example:
 
 This is cleaner than reusing one key everywhere, and easier to reason about than a pile of manually managed key files.
 
-## Requirements
-
-### macOS
-
-- macOS 15.0 or later
-- Apple Silicon (`arm64`)
-- a passkey provider with PRF support, such as Apple's built-in Passwords integration
-
-### Linux / other platforms
-
-- a phone with a passkey provider that supports the PRF extension
 
 ## Security model
 
