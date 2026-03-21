@@ -9,13 +9,23 @@ use tungstenite::stream::MaybeTlsStream;
 use tungstenite::{connect, Message, WebSocket};
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
-use crate::Format;
-
 const DEFAULT_RELAY_URL: &str = "wss://tapkey-relay.julsh.workers.dev";
 const PAGE_URL: &str = "https://tapkey.jul.sh/nearby";
 const WS_TIMEOUT_SECS: u64 = 300; // 5 minutes
 
-pub fn start_nearby_flow(operation: &str, name: &str, format: Format, is_public: bool) {
+/// Authenticate via nearby device and return the PRF output.
+pub fn authenticate_nearby(name: &str) -> Vec<u8> {
+    let (_credential_id, prf_first) = run_nearby_flow("assert", name);
+    prf_first
+}
+
+/// Register a passkey via nearby device.
+pub fn register_nearby() {
+    run_nearby_flow("register", "default");
+    eprintln!("Passkey registered successfully via nearby device.");
+}
+
+fn run_nearby_flow(operation: &str, name: &str) -> (Vec<u8>, Vec<u8>) {
     // Install rustls crypto provider
     rustls::crypto::ring::default_provider()
         .install_default()
@@ -94,15 +104,7 @@ pub fn start_nearby_flow(operation: &str, name: &str, format: Format, is_public:
     let response = wait_for_response(&mut ws);
 
     // Decrypt
-    let (_credential_id, prf_first) = decrypt_response(cli_secret, &response, &session_id);
-
-    if operation == "register" {
-        eprintln!("Passkey registered successfully via nearby device.");
-        std::process::exit(0);
-    }
-
-    // For derive/public-key: emit the key
-    crate::emit_key(&prf_first, format, is_public);
+    decrypt_response(cli_secret, &response, &session_id)
 }
 
 fn build_qr_config(
@@ -239,11 +241,15 @@ fn decrypt_response(
         .unwrap_or_else(|e| crate::die(&format!("invalid credentialId: {e}")));
 
     let prf_first = if let Some(prf_b64) = payload["prfFirst"].as_str() {
-        URL_SAFE_NO_PAD
+        let decoded = URL_SAFE_NO_PAD
             .decode(prf_b64)
-            .unwrap_or_else(|e| crate::die(&format!("invalid prfFirst: {e}")))
+            .unwrap_or_else(|e| crate::die(&format!("invalid prfFirst: {e}")));
+        if decoded.is_empty() {
+            crate::die("passkey provider returned empty PRF output — it may not support the PRF extension");
+        }
+        decoded
     } else {
-        Vec::new()
+        crate::die("passkey provider did not return PRF output — it may not support the PRF extension");
     };
 
     (credential_id, prf_first)
