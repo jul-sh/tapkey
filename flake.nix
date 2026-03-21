@@ -29,7 +29,7 @@
         packages = pkgs.lib.optionalAttrs (builtins.hasAttr system releases) {
           default = pkgs.stdenv.mkDerivation {
             pname = "tapkey";
-            version = "2.2.0";
+            version = "2.3.0";
             src = pkgs.fetchurl {
               inherit (releases.${system}) url hash;
             };
