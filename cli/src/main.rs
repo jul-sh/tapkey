@@ -21,9 +21,13 @@ struct Cli {
     #[arg(long, default_value = "hex", conflicts_with = "init")]
     format: Format,
 
-    /// Output the public key instead of the private key
-    #[arg(long, conflicts_with_all = ["init", "encrypt", "decrypt"])]
+    /// Output the public key explicitly
+    #[arg(long, conflicts_with_all = ["init", "encrypt", "decrypt", "reveal"])]
     public: bool,
+
+    /// Reveal private key material (default output is the public key)
+    #[arg(long, conflicts_with_all = ["init", "encrypt", "decrypt", "public"])]
+    reveal: bool,
 
     /// Encrypt a file with the derived age identity
     #[arg(long, conflicts_with_all = ["init", "format"])]
@@ -64,23 +68,27 @@ fn main() {
     }
 
     let name = cli.name.as_deref().unwrap_or("default");
+
+    if !cli.public && !cli.reveal && cli.encrypt.is_none() && cli.decrypt.is_none() {
+        eprintln!("Usage: keytap {name} --public   (public key)");
+        eprintln!("       keytap {name} --reveal   (private key material)");
+        std::process::exit(1);
+    }
+
     let prf_output = authenticate(name);
     let raw_key = derive_key(&prf_output);
-
-    if cli.public {
-        if matches!(cli.format, Format::Raw) {
-            die("--format raw is not supported with --public");
-        }
-        emit_public_key(&raw_key, cli.format);
-        return;
-    }
 
     if let Some(ref path) = cli.encrypt {
         encrypt::encrypt_file(&raw_key, path, &cli.recipients, &cli.recipients_file, !cli.no_self);
     } else if let Some(ref path) = cli.decrypt {
         encrypt::decrypt_file(&raw_key, path);
-    } else {
+    } else if cli.reveal {
         emit_private_key(&raw_key, cli.format);
+    } else {
+        if matches!(cli.format, Format::Raw) {
+            die("--format raw requires --reveal");
+        }
+        emit_public_key(&raw_key, cli.format);
     }
 }
 

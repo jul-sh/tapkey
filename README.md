@@ -35,33 +35,29 @@ Create the passkey once:
 keytap --init
 ```
 
-Then derive key material:
+Then derive a key.
 
 ```bash
-keytap [name]
+keytap myKey --public          # public key (safe to share)
+keytap myKey --reveal          # private key material (sensitive)
 ```
 
 Use a name to derive different keys from the same passkey:
 
 ```bash
-keytap backup
-keytap deploy
-keytap # The default name is `default`.
+keytap backup --public
+keytap deploy --public
+keytap --public   # The default name is `default`.
 ```
 
-Derive key material in different formats:
+Different formats:
 
 ```bash
-keytap myBase64Key --format base64
-keytap myRawKey --format raw
-keytap smolSecrets --format age
-keytap smolSshKey --format ssh
-```
-
-Get the public key for a derived key:
-
-```bash
-keytap smolSshKey --format ssh --public
+keytap myKey --public --format age
+keytap myKey --public --format ssh
+keytap myKey --reveal --format age
+keytap myKey --reveal --format ssh
+keytap myKey --reveal --format raw
 ```
 
 ### Encrypt and decrypt files
@@ -130,10 +126,16 @@ On systems without native passkey support (like Linux), keytap authenticates via
 
 ## Security
 
-keytap's security model is simple: the passkey is the root secret.
+keytap is a convenience utility, not a high-assurance security tool. It is designed to make passkey-derived keys easy to use across machines. If your threat model involves nation-state adversaries, targeted attacks, or secrets where compromise has severe consequences, use purpose-built tools instead:
 
-- keytap depends on your passkey provider, WebAuthn PRF, and local device authentication. It does not create a stronger trust boundary than the provider already gives you.
-- keytap does not sync or cache derived keys itself. It derives on demand, writes to stdout, and exits. There are no local config files or cached state.
+- **SSH keys**: Generate directly with `ssh-keygen` and manage per-device keys. Use [FIDO2 resident keys](https://developers.yubico.com/SSH/Securing_git_with_SSH_and_FIDO2.html) on a hardware token for phishing-resistant SSH without syncing private material at all.
+- **age encryption**: Generate standalone identities with `age-keygen`. See [age](https://github.com/FiloSottile/age) and [age-plugin-yubikey](https://github.com/str4d/age-plugin-yubikey) for hardware-bound identities.
+
+keytap ties all derived keys to a single passkey registered under the `keytap.jul.sh` relying party. That means you trust your passkey provider, the WebAuthn PRF extension, and the `keytap.jul.sh` domain. This is a meaningful trust surface that the tools above avoid entirely.
+
+With that said, here is how keytap works within those constraints:
+
+- keytap does not sync or cache derived keys. It derives on demand, writes to stdout, and exits. There are no local config files or cached state.
 - If you save the output, pipe it into another tool, or import it into an agent, that destination now holds the key and must be trusted accordingly.
 - The PRF inputs are public and derived from the key name. They provide stable derivation and domain separation, not secrecy.
 - Replacing the registered passkey changes every key derived from it. Treat the passkey as the root of your derived identities.
@@ -144,7 +146,6 @@ When keytap authenticates via your phone, additional trust considerations apply:
 
 - **You trust the web page served to your phone.** The website served by `keytap.jul.sh` performs the WebAuthn ceremony, receives the PRF output, encrypts it, and posts back to the host, via the relay. You trust its functionality and integrity. The web page is served inspectable, but in practice you are unlikely to review it each time.
 - The Cloudflare relay (`keytap-relay.julsh.workers.dev`) forwards opaque encrypted blobs. It never sees plaintext key material. The channel is end-to-end encrypted with X25519 ECDH + HKDF-SHA256 + AES-256-GCM. An attacker who controls the relay can deny service but cannot decrypt the payload.
-- On macOS hosts, none of this applies. The native passkey flow uses the hosts passkeys, or alternatively a native QR code with that opens a native direct device-to-device channel.
 
 ## Tips
 
@@ -167,7 +168,7 @@ Add keytap to a Nix shell using the attested, signed release:
 If you want to avoid re-authenticating every time, you can store a derived key in the macOS Keychain:
 
 ```bash
-security add-generic-password -s keytap -a AGE_SECRET_KEY -w "$(keytap myKey --format age)"
+security add-generic-password -s keytap -a AGE_SECRET_KEY -w "$(keytap myKey --format age --reveal)"
 ```
 
 ### Usage with age CLI
@@ -175,8 +176,8 @@ security add-generic-password -s keytap -a AGE_SECRET_KEY -w "$(keytap myKey --f
 keytap has built-in encryption via `--encrypt` and `--decrypt`, but you can also use the `age` CLI directly with derived keys:
 
 ```bash
-echo "secret" | age -r "$(keytap smolSecrets --format age --public)" > secret.age
-age -d -i <(keytap smolSecrets --format age) secret.age
+echo "secret" | age -r "$(keytap smolSecrets --format age)" > secret.age
+age -d -i <(keytap smolSecrets --format age --reveal) secret.age
 ```
 
 ## License
