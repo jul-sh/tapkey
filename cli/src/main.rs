@@ -1,3 +1,4 @@
+mod encrypt;
 mod nearby;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -21,6 +22,26 @@ struct Cli {
     /// Output format
     #[arg(long, default_value = "hex", conflicts_with = "init")]
     format: Format,
+
+    /// Encrypt a file with the derived age identity
+    #[arg(long, conflicts_with_all = ["init", "format"])]
+    encrypt: Option<String>,
+
+    /// Decrypt an age-encrypted file with the derived age identity
+    #[arg(long, conflicts_with_all = ["init", "format", "encrypt"])]
+    decrypt: Option<String>,
+
+    /// Additional age recipient (can be repeated)
+    #[arg(long = "to", conflicts_with_all = ["init", "decrypt"])]
+    recipients: Vec<String>,
+
+    /// File containing age recipients (one per line)
+    #[arg(short = 'R', conflicts_with_all = ["init", "decrypt"])]
+    recipients_file: Vec<String>,
+
+    /// Don't include self as a recipient when encrypting
+    #[arg(long, conflicts_with_all = ["init", "decrypt"])]
+    no_self: bool,
 }
 
 #[derive(Subcommand)]
@@ -50,15 +71,61 @@ fn main() {
 
     if cli.init {
         register();
-    } else if let Some(Cmd::PublicKey { name, format }) = cli.command {
+        return;
+    }
+
+    if let Some(Cmd::PublicKey { name, format }) = cli.command {
         if matches!(format, Format::Raw) {
             die("--format raw is not supported for public-key");
         }
-        derive(&name, format, true);
-    } else {
-        let name = cli.name.as_deref().unwrap_or("default");
-        derive(name, cli.format, false);
+        let prf_output = authenticate(&name);
+        let raw_key = derive_key(&prf_output);
+        emit_public_key(&raw_key, format);
+        return;
     }
+
+    let name = cli.name.as_deref().unwrap_or("default");
+
+    if let Some(ref path) = cli.encrypt {
+        let prf_output = authenticate(name);
+        let raw_key = derive_key(&prf_output);
+        encrypt::encrypt_file(&raw_key, path, &cli.recipients, &cli.recipients_file, !cli.no_self);
+    } else if let Some(ref path) = cli.decrypt {
+        let prf_output = authenticate(name);
+        let raw_key = derive_key(&prf_output);
+        encrypt::decrypt_file(&raw_key, path);
+    } else {
+        let prf_output = authenticate(name);
+        let raw_key = derive_key(&prf_output);
+        emit_private_key(&raw_key, cli.format);
+    }
+}
+
+/// Authenticate with passkey and return the PRF output.
+#[cfg(feature = "native-passkey")]
+fn authenticate(name: &str) -> Vec<u8> {
+    match tapkey_macos::assert(name) {
+        tapkey_macos::AssertionOutcome::Success { prf_output, .. } => prf_output,
+        tapkey_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
+            die(&msg);
+        }
+        tapkey_macos::AssertionOutcome::Error(msg) => {
+            eprintln!("Native passkey failed: {msg}");
+            eprintln!("Falling back to QR code flow…");
+            nearby::authenticate_nearby(name)
+        }
+    }
+}
+
+#[cfg(not(feature = "native-passkey"))]
+fn authenticate(name: &str) -> Vec<u8> {
+    nearby::authenticate_nearby(name)
+}
+
+fn derive_key(prf_output: &[u8]) -> Vec<u8> {
+    tapkey_core::derive_raw_key(prf_output).unwrap_or_else(|e| {
+        die(&format!("key derivation failed: {e}"));
+    })
 }
 
 #[cfg(feature = "native-passkey")]
@@ -73,78 +140,49 @@ fn register() {
         tapkey_macos::RegistrationOutcome::Error(msg) => {
             eprintln!("Native passkey failed: {msg}");
             eprintln!("Falling back to QR code flow…");
-            nearby::start_nearby_flow("register", "default", Format::Hex, false);
+            nearby::register_nearby();
         }
     }
 }
 
 #[cfg(not(feature = "native-passkey"))]
 fn register() {
-    nearby::start_nearby_flow("register", "default", Format::Hex, false);
+    nearby::register_nearby();
 }
 
-#[cfg(feature = "native-passkey")]
-fn derive(name: &str, format: Format, is_public: bool) {
-    match tapkey_macos::assert(name) {
-        tapkey_macos::AssertionOutcome::Success { prf_output, .. } => {
-            emit_key(&prf_output, format, is_public);
+fn emit_private_key(raw_key: &[u8], format: Format) {
+    let priv_format = match format {
+        Format::Hex => PrivateKeyFormat::Hex,
+        Format::Base64 => PrivateKeyFormat::Base64,
+        Format::Age => PrivateKeyFormat::AgeSecretKey,
+        Format::Raw => PrivateKeyFormat::Raw,
+        Format::Ssh => PrivateKeyFormat::SshPrivateKey,
+    };
+    match tapkey_core::format_private_key(raw_key, priv_format) {
+        Ok(bytes) => {
+            if matches!(format, Format::Raw) {
+                std::io::stdout().write_all(&bytes).unwrap();
+            } else if matches!(format, Format::Ssh) {
+                print!("{}", String::from_utf8(bytes).unwrap());
+            } else {
+                println!("{}", String::from_utf8(bytes).unwrap());
+            }
         }
-        tapkey_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
-            die(&msg);
-        }
-        tapkey_macos::AssertionOutcome::Error(msg) => {
-            eprintln!("Native passkey failed: {msg}");
-            eprintln!("Falling back to QR code flow…");
-            nearby::start_nearby_flow("assert", name, format, is_public);
-        }
+        Err(e) => die(&format!("format error: {e}")),
     }
 }
 
-#[cfg(not(feature = "native-passkey"))]
-fn derive(name: &str, format: Format, is_public: bool) {
-    nearby::start_nearby_flow("assert", name, format, is_public);
-}
-
-pub(crate) fn emit_key(prf_output: &[u8], format: Format, is_public: bool) {
-    let raw_key = match tapkey_core::derive_raw_key(prf_output) {
-        Ok(k) => k,
-        Err(e) => die(&format!("key derivation failed: {e}")),
+fn emit_public_key(raw_key: &[u8], format: Format) {
+    let pub_format = match format {
+        Format::Hex => PublicKeyFormat::Hex,
+        Format::Base64 => PublicKeyFormat::Base64,
+        Format::Age => PublicKeyFormat::AgeRecipient,
+        Format::Ssh => PublicKeyFormat::SshPublicKey,
+        Format::Raw => die("--format raw is not supported for public-key"),
     };
-
-    if is_public {
-        let pub_format = match format {
-            Format::Hex => PublicKeyFormat::Hex,
-            Format::Base64 => PublicKeyFormat::Base64,
-            Format::Age => PublicKeyFormat::AgeRecipient,
-            Format::Ssh => PublicKeyFormat::SshPublicKey,
-            Format::Raw => die("--format raw is not supported for public-key"),
-        };
-        match tapkey_core::format_public_key(&raw_key, pub_format) {
-            Ok(s) => {
-                println!("{s}");
-            }
-            Err(e) => die(&format!("format error: {e}")),
-        }
-    } else {
-        let priv_format = match format {
-            Format::Hex => PrivateKeyFormat::Hex,
-            Format::Base64 => PrivateKeyFormat::Base64,
-            Format::Age => PrivateKeyFormat::AgeSecretKey,
-            Format::Raw => PrivateKeyFormat::Raw,
-            Format::Ssh => PrivateKeyFormat::SshPrivateKey,
-        };
-        match tapkey_core::format_private_key(&raw_key, priv_format) {
-            Ok(bytes) => {
-                if matches!(format, Format::Raw) {
-                    std::io::stdout().write_all(&bytes).unwrap();
-                } else if matches!(format, Format::Ssh) {
-                    print!("{}", String::from_utf8(bytes).unwrap());
-                } else {
-                    println!("{}", String::from_utf8(bytes).unwrap());
-                }
-            }
-            Err(e) => die(&format!("format error: {e}")),
-        }
+    match tapkey_core::format_public_key(raw_key, pub_format) {
+        Ok(s) => println!("{s}"),
+        Err(e) => die(&format!("format error: {e}")),
     }
 }
 

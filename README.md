@@ -64,6 +64,45 @@ Get the public key for a derived key, e.g. a key named `smolSshKey`:
 tapkey public-key smolSshKey --format ssh
 ```
 
+### Encrypt and decrypt files
+
+Encrypt a file with your derived age identity:
+
+```bash
+tapkey --encrypt secrets.env
+```
+
+This writes `secrets.env.age`, encrypted to your passkey. Decrypt it:
+
+```bash
+tapkey --decrypt secrets.env.age > secrets.env
+```
+
+Encrypt to yourself and others:
+
+```bash
+tapkey --encrypt secrets.env --to age1abc...
+```
+
+Or use a recipients file (one age public key per line):
+
+```bash
+tapkey --encrypt secrets.env -R age-recipients.txt
+```
+
+Encrypt to others only, without including yourself:
+
+```bash
+tapkey --encrypt secrets.env --to age1abc... --no-self
+```
+
+The key name works the same way as with key derivation:
+
+```bash
+tapkey backup --encrypt secrets.env
+tapkey backup --decrypt secrets.env.age > secrets.env
+```
+
 ## Requirements
 
 ### macOS (native passkey)
@@ -79,7 +118,7 @@ tapkey public-key smolSshKey --format ssh
 1. `tapkey --init` creates a passkey for the relying party `tapkey.jul.sh`. The passkey lives in your chosen passkey provider.
 2. `tapkey [name]` performs a WebAuthn assertion using the PRF extension. The PRF input is `SHA256("tapkey:prf:<name>")`, so each name requests a different PRF output directly from the passkey.
 3. The PRF output is expanded with HKDF-SHA256 using a fixed tapkey info string to produce 32 bytes of key material.
-4. The result is formatted as raw bytes, hex, base64, an `age` secret key, or an OpenSSH Ed25519 key.
+4. The result is formatted as raw bytes, hex, base64, an `age` secret key, or an OpenSSH Ed25519 key. With `--encrypt`/`--decrypt`, the derived age identity is used to encrypt or decrypt files directly.
 
 Same passkey, same name, same derived key. Different names derive different keys.
 
@@ -131,9 +170,9 @@ If you want to avoid re-authenticating every time, you can store a derived key i
 security add-generic-password -s tapkey -a AGE_SECRET_KEY -w "$(tapkey myKey --format age)"
 ```
 
-### Usage with age
+### Usage with age CLI
 
-E.g. using an age key called `smolSecrets`
+tapkey has built-in encryption via `--encrypt` and `--decrypt`, but you can also use the `age` CLI directly with derived keys:
 
 ```bash
 echo "secret" | age -r "$(tapkey public-key smolSecrets)" > secret.age
