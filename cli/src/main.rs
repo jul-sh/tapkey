@@ -3,11 +3,11 @@ mod nearby;
 
 use clap::{Parser, ValueEnum};
 use std::io::Write;
-use tapkey_core::{PrivateKeyFormat, PublicKeyFormat};
+use keytap_core::{PrivateKeyFormat, PublicKeyFormat};
 use zeroize::Zeroizing;
 
 #[derive(Parser)]
-#[command(name = "tapkey", version)]
+#[command(name = "keytap", version)]
 struct Cli {
     /// Create the passkey (only needed once)
     #[arg(long)]
@@ -88,14 +88,14 @@ fn main() {
 #[cfg(feature = "native-passkey")]
 fn authenticate(name: &str) -> Zeroizing<Vec<u8>> {
     for attempt in 1..=3 {
-        match tapkey_macos::assert(name) {
-            tapkey_macos::AssertionOutcome::Success { prf_output, .. } => {
+        match keytap_macos::assert(name) {
+            keytap_macos::AssertionOutcome::Success { prf_output, .. } => {
                 return Zeroizing::new(prf_output);
             }
-            tapkey_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
+            keytap_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
                 die(&msg);
             }
-            tapkey_macos::AssertionOutcome::Error(msg) => {
+            keytap_macos::AssertionOutcome::Error(msg) => {
                 if attempt < 3 {
                     eprintln!("Native passkey failed (attempt {attempt}/3): {msg}");
                 } else {
@@ -114,7 +114,7 @@ fn authenticate(name: &str) -> Zeroizing<Vec<u8>> {
 }
 
 fn derive_key(prf_output: &[u8]) -> Zeroizing<Vec<u8>> {
-    Zeroizing::new(tapkey_core::derive_raw_key(prf_output).unwrap_or_else(|e| {
+    Zeroizing::new(keytap_core::derive_raw_key(prf_output).unwrap_or_else(|e| {
         die(&format!("key derivation failed: {e}"));
     }))
 }
@@ -122,15 +122,15 @@ fn derive_key(prf_output: &[u8]) -> Zeroizing<Vec<u8>> {
 #[cfg(feature = "native-passkey")]
 fn register() {
     for attempt in 1..=3 {
-        match tapkey_macos::register() {
-            tapkey_macos::RegistrationOutcome::Success => {
+        match keytap_macos::register() {
+            keytap_macos::RegistrationOutcome::Success => {
                 eprintln!("Passkey registered successfully.");
                 return;
             }
-            tapkey_macos::RegistrationOutcome::Error(msg) if msg == "cancelled" => {
+            keytap_macos::RegistrationOutcome::Error(msg) if msg == "cancelled" => {
                 die(&msg);
             }
-            tapkey_macos::RegistrationOutcome::Error(msg) => {
+            keytap_macos::RegistrationOutcome::Error(msg) => {
                 if attempt < 3 {
                     eprintln!("Native passkey failed (attempt {attempt}/3): {msg}");
                 } else {
@@ -156,7 +156,7 @@ fn emit_private_key(raw_key: &[u8], format: Format) {
         Format::Raw => PrivateKeyFormat::Raw,
         Format::Ssh => PrivateKeyFormat::SshPrivateKey,
     };
-    match tapkey_core::format_private_key(raw_key, priv_format) {
+    match keytap_core::format_private_key(raw_key, priv_format) {
         Ok(bytes) => {
             if matches!(format, Format::Raw) {
                 std::io::stdout().write_all(&bytes).unwrap();
@@ -178,7 +178,7 @@ fn emit_public_key(raw_key: &[u8], format: Format) {
         Format::Ssh => PublicKeyFormat::SshPublicKey,
         Format::Raw => die("--format raw is not supported with --public"),
     };
-    match tapkey_core::format_public_key(raw_key, pub_format) {
+    match keytap_core::format_public_key(raw_key, pub_format) {
         Ok(s) => println!("{s}"),
         Err(e) => die(&format!("format error: {e}")),
     }

@@ -112,7 +112,7 @@ pub fn decrypt_file(raw_key: &[u8], path: &str) {
 
 fn identity_from_raw_key(raw_key: &[u8]) -> x25519::Identity {
     let secret_key_bytes = Zeroizing::new(
-        tapkey_core::format_private_key(raw_key, tapkey_core::PrivateKeyFormat::AgeSecretKey)
+        keytap_core::format_private_key(raw_key, keytap_core::PrivateKeyFormat::AgeSecretKey)
             .unwrap_or_else(|e| crate::die(&format!("key format error: {e}")))
     );
     let secret_key_str = Zeroizing::new(

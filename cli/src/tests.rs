@@ -5,7 +5,7 @@ use base64::Engine;
 fn test_validate_key_name_empty() {
     assert!(matches!(
         prf_salt_for_name(""),
-        Err(TapkeyError::InvalidKeyName { .. })
+        Err(KeytapError::InvalidKeyName { .. })
     ));
 }
 
@@ -13,7 +13,7 @@ fn test_validate_key_name_empty() {
 fn test_validate_key_name_non_ascii() {
     assert!(matches!(
         prf_salt_for_name("kéy"),
-        Err(TapkeyError::InvalidKeyName { .. })
+        Err(KeytapError::InvalidKeyName { .. })
     ));
 }
 
@@ -22,7 +22,7 @@ fn test_validate_key_name_too_long() {
     let long_name = "a".repeat(129);
     assert!(matches!(
         prf_salt_for_name(&long_name),
-        Err(TapkeyError::InvalidKeyName { .. })
+        Err(KeytapError::InvalidKeyName { .. })
     ));
 }
 
@@ -42,10 +42,10 @@ fn test_prf_salt_deterministic() {
 
 #[test]
 fn test_prf_salt_known_value() {
-    // SHA256("tapkey:prf:default")
+    // SHA256("keytap:prf:default")
     let salt = prf_salt_for_name("default").unwrap();
-    // This is the canonical test vector - SHA256 of "tapkey:prf:default"
-    let computed = sha2::Sha256::digest(b"tapkey:prf:default");
+    // This is the canonical test vector - SHA256 of "keytap:prf:default"
+    let computed = sha2::Sha256::digest(b"keytap:prf:default");
     assert_eq!(salt, computed.to_vec());
     // Salt should be exactly 32 bytes
     assert_eq!(salt.len(), 32);
@@ -62,7 +62,7 @@ fn test_prf_salt_different_names() {
 fn test_derive_raw_key_wrong_length() {
     assert!(matches!(
         derive_raw_key(&[0u8; 16]),
-        Err(TapkeyError::InvalidPrfOutputLength { actual: 16 })
+        Err(KeytapError::InvalidPrfOutputLength { actual: 16 })
     ));
 }
 
@@ -122,7 +122,7 @@ fn test_format_public_key_ssh() {
     let raw = [0u8; 32];
     let result = format_public_key(&raw, PublicKeyFormat::SshPublicKey).unwrap();
     assert!(result.starts_with("ssh-ed25519 "));
-    assert!(result.ends_with(" tapkey"));
+    assert!(result.ends_with(" keytap"));
 }
 
 #[test]
@@ -135,16 +135,16 @@ fn test_format_public_key_age() {
 #[test]
 fn test_registration_config() {
     let config = registration_config();
-    assert_eq!(config.rp_id, "tapkey.jul.sh");
-    assert_eq!(config.user_name, "tapkey");
-    assert_eq!(config.user_id, b"tapkey-user");
+    assert_eq!(config.rp_id, "keytap.jul.sh");
+    assert_eq!(config.user_name, "keytap");
+    assert_eq!(config.user_id, b"keytap-user");
     assert_eq!(config.default_prf_salt.len(), 32);
 }
 
 #[test]
 fn test_assertion_config() {
     let config = assertion_config("mykey", None).unwrap();
-    assert_eq!(config.rp_id, "tapkey.jul.sh");
+    assert_eq!(config.rp_id, "keytap.jul.sh");
     assert_eq!(config.key_name, "mykey");
     assert_eq!(config.prf_salt.len(), 32);
     assert!(config.preferred_credential_id.is_none());

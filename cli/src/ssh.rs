@@ -1,6 +1,6 @@
 use base64::Engine;
 use sha2::{Digest, Sha256};
-const CHECK_INT_LABEL: &[u8] = b"tapkey:ssh-checkint";
+const CHECK_INT_LABEL: &[u8] = b"keytap:ssh-checkint";
 
 fn ed25519_public_key(seed: &[u8; 32]) -> ed25519_dalek::VerifyingKey {
     ed25519_dalek::SigningKey::from_bytes(seed).verifying_key()
@@ -11,18 +11,18 @@ pub fn public_key_line(seed: &[u8]) -> String {
     let vk = ed25519_public_key(seed);
     let key = ssh_key::PublicKey::from(ssh_key::public::Ed25519PublicKey::from(vk));
     let openssh = key.to_openssh().unwrap();
-    format!("{} tapkey", openssh)
+    format!("{} keytap", openssh)
 }
 
 /// OpenSSH private key PEM with deterministic check-int.
 ///
-/// Standard ssh-key crates use random check-ints. Tapkey needs determinism
+/// Standard ssh-key crates use random check-ints. Keytap needs determinism
 /// (same seed → same PEM), so we build the private key blob manually.
 pub fn private_key_pem(seed: &[u8]) -> String {
     let seed: &[u8; 32] = seed.try_into().unwrap();
     let pub_key = ed25519_public_key(seed).to_bytes();
 
-    // Check-int: first 4 bytes of SHA256("tapkey:ssh-checkint" || seed)
+    // Check-int: first 4 bytes of SHA256("keytap:ssh-checkint" || seed)
     let check_int = {
         let hash = Sha256::digest([CHECK_INT_LABEL, seed].concat());
         u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])

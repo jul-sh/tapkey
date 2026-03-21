@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 
-RELAY_URL = os.environ.get("TAPKEY_RELAY_URL", "http://tapkey-relay.julsh.workers.dev")
+RELAY_URL = os.environ.get("KEYTAP_RELAY_URL", "http://keytap-relay.julsh.workers.dev")
 # Convert ws:// to http:// for POST requests
 if RELAY_URL.startswith("ws://"):
     RELAY_URL = RELAY_URL.replace("ws://", "http://", 1)
@@ -75,7 +75,7 @@ def main():
         algorithm=hashes.SHA256(),
         length=32,
         salt=session_id.encode(),
-        info=b"tapkey:e2e:v1",
+        info=b"keytap:e2e:v1",
     )
     aes_key = hkdf.derive(shared_secret)
 
@@ -103,8 +103,8 @@ def main():
         data=body.encode(),
         headers={
             "Content-Type": "application/json",
-            "Origin": "https://tapkey.jul.sh",
-            "User-Agent": "Mozilla/5.0 tapkey-test",
+            "Origin": "https://keytap.jul.sh",
+            "User-Agent": "Mozilla/5.0 keytap-test",
         },
         method="POST",
     )

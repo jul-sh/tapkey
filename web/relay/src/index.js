@@ -1,5 +1,5 @@
 const CORS_ORIGINS = new Set([
-  "https://tapkey.jul.sh",
+  "https://keytap.jul.sh",
 ]);
 
 /**

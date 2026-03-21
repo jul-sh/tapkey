@@ -49,7 +49,7 @@ fn test_full_e2e_encrypt_decrypt() {
     let phone_hk = Hkdf::<Sha256>::new(Some(session_id.as_bytes()), phone_shared.as_bytes());
     let mut phone_aes_key = [0u8; 32];
     phone_hk
-        .expand(b"tapkey:e2e:v1", &mut phone_aes_key)
+        .expand(b"keytap:e2e:v1", &mut phone_aes_key)
         .unwrap();
 
     // Encrypt payload
@@ -73,7 +73,7 @@ fn test_full_e2e_encrypt_decrypt() {
     let cli_hk = Hkdf::<Sha256>::new(Some(session_id.as_bytes()), cli_shared.as_bytes());
     let mut cli_aes_key = [0u8; 32];
     cli_hk
-        .expand(b"tapkey:e2e:v1", &mut cli_aes_key)
+        .expand(b"keytap:e2e:v1", &mut cli_aes_key)
         .unwrap();
 
     // Keys must match
@@ -114,7 +114,7 @@ fn test_qr_config_compact_format() {
 
     let config_str = config.to_string();
     let config_b64 = URL_SAFE_NO_PAD.encode(config_str.as_bytes());
-    let url = format!("https://tapkey.jul.sh/n/{}#cfg={}", session_id, config_b64);
+    let url = format!("https://keytap.jul.sh/n/{}#cfg={}", session_id, config_b64);
 
     // Verify URL is reasonably short for QR
     assert!(
@@ -134,12 +134,12 @@ fn test_qr_config_compact_format() {
 
 #[test]
 fn test_derive_key_from_prf_output() {
-    // Verify that the key derivation path matches tapkey-core
+    // Verify that the key derivation path matches keytap-core
     let fake_prf = [42u8; 32]; // simulated PRF output
-    let raw_key = tapkey_core::derive_raw_key(&fake_prf).unwrap();
+    let raw_key = keytap_core::derive_raw_key(&fake_prf).unwrap();
     assert_eq!(raw_key.len(), 32);
 
     // Determinism: same PRF input → same key
-    let raw_key2 = tapkey_core::derive_raw_key(&fake_prf).unwrap();
+    let raw_key2 = keytap_core::derive_raw_key(&fake_prf).unwrap();
     assert_eq!(raw_key, raw_key2);
 }

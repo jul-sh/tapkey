@@ -20,14 +20,14 @@ typealias Callback = @convention(c) (
 
 // MARK: - Exported functions
 
-@_cdecl("tapkey_register")
-func tapkeyRegister(context: UInt64, callback: Callback) {
+@_cdecl("keytap_register")
+func keytapRegister(context: UInt64, callback: Callback) {
     let (app, window) = setupApp()
     let delegate = PasskeyDelegate(window: window, context: context, callback: callback)
 
-    let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: "tapkey.jul.sh")
+    let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: "keytap.jul.sh")
     let request = provider.createCredentialRegistrationRequest(
-        challenge: randomChallenge(), name: "tapkey", userID: Data("tapkey-user".utf8)
+        challenge: randomChallenge(), name: "keytap", userID: Data("keytap-user".utf8)
     )
     request.prf = .checkForSupport
 
@@ -40,8 +40,8 @@ func tapkeyRegister(context: UInt64, callback: Callback) {
     app.run()
 }
 
-@_cdecl("tapkey_assert")
-func tapkeyAssert(
+@_cdecl("keytap_assert")
+func keytapAssert(
     saltPtr: UnsafePointer<UInt8>, saltLen: UInt,
     context: UInt64, callback: Callback
 ) {
@@ -49,7 +49,7 @@ func tapkeyAssert(
     let delegate = PasskeyDelegate(window: window, context: context, callback: callback)
 
     let salt = Data(bytes: saltPtr, count: Int(saltLen))
-    let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: "tapkey.jul.sh")
+    let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: "keytap.jul.sh")
     let request = provider.createCredentialAssertionRequest(challenge: randomChallenge())
 
     let inputValues = ASAuthorizationPublicKeyCredentialPRFAssertionInput.InputValues.saltInput1(salt)

@@ -20,8 +20,8 @@ type RawCallback = unsafe extern "C" fn(
 );
 
 extern "C" {
-    fn tapkey_register(context: u64, callback: RawCallback);
-    fn tapkey_assert(
+    fn keytap_register(context: u64, callback: RawCallback);
+    fn keytap_assert(
         salt_ptr: *const u8,
         salt_len: usize,
         context: u64,
@@ -72,7 +72,7 @@ unsafe extern "C" fn on_assertion(
 pub fn register() -> RegistrationOutcome {
     let mut outcome: Option<RegistrationOutcome> = None;
     let ctx = &mut outcome as *mut Option<RegistrationOutcome> as u64;
-    unsafe { tapkey_register(ctx, on_registration) };
+    unsafe { keytap_register(ctx, on_registration) };
     outcome.expect("passkey callback was not invoked")
 }
 
@@ -80,11 +80,11 @@ pub fn register() -> RegistrationOutcome {
 /// Blocks until the user completes or cancels, then returns the outcome.
 pub fn assert(key_name: &str) -> AssertionOutcome {
     use sha2::{Digest, Sha256};
-    let prf_salt = Sha256::digest(format!("tapkey:prf:{key_name}")).to_vec();
+    let prf_salt = Sha256::digest(format!("keytap:prf:{key_name}")).to_vec();
     let mut outcome: Option<AssertionOutcome> = None;
     let ctx = &mut outcome as *mut Option<AssertionOutcome> as u64;
     unsafe {
-        tapkey_assert(
+        keytap_assert(
             prf_salt.as_ptr(),
             prf_salt.len(),
             ctx,

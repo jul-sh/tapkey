@@ -1,30 +1,30 @@
 # Passkeys that turn into real keys.
 
-<img src="macos/tapkey.icon/Assets/icon.png" width="128" alt="tapkey icon" />
+<img src="macos/keytap.icon/Assets/icon.png" width="128" alt="keytap icon" />
 
-tapkey is a smol CLI that lets you recover the same SSH key, `age` identity, or app secret on any machine where you can unlock the same passkey.
+keytap is a smol CLI that lets you recover the same SSH key, `age` identity, or app secret on any machine where you can unlock the same passkey.
 
-Passkey providers sync passkeys. They usually do not sync arbitrary private keys such as SSH keys. tapkey bridges that gap by deriving the key locally after passkey authentication, without manually copying private key files between machines.
+Passkey providers sync passkeys. They usually do not sync arbitrary private keys such as SSH keys. keytap bridges that gap by deriving the key locally after passkey authentication, without manually copying private key files between machines.
 
 ## Install
 
 ```bash
-URL=$(curl -fsSL https://api.github.com/repos/jul-sh/tapkey/releases/latest \
+URL=$(curl -fsSL https://api.github.com/repos/jul-sh/keytap/releases/latest \
   | grep -o '"browser_download_url": *"[^"]*"' | cut -d '"' -f 4 \
   | grep "$([ "$(uname -s)" = Darwin ] && echo arm64 || echo linux)") \
   && curl -fLO "$URL" && mkdir -p ~/.local/bin \
   && if [ "$(uname -s)" = Darwin ]; then
-       mkdir -p ~/.local/share/tapkey && unzip -o tapkey-*-arm64.zip -d ~/.local/share/tapkey \
-       && ln -sf ~/.local/share/tapkey/Tapkey.app/Contents/MacOS/tapkey ~/.local/bin/tapkey
+       mkdir -p ~/.local/share/keytap && unzip -o keytap-*-arm64.zip -d ~/.local/share/keytap \
+       && ln -sf ~/.local/share/keytap/Keytap.app/Contents/MacOS/keytap ~/.local/bin/keytap
      else
-       unzip -o tapkey-*-linux*.zip tapkey -d ~/.local/bin
+       unzip -o keytap-*-linux*.zip keytap -d ~/.local/bin
      fi
 ```
 
 Releases are built in CI with [build attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations). To verify the binary was built from this repo's source (requires [GitHub CLI](https://cli.github.com/)):
 
 ```bash
-gh attestation verify tapkey-*.zip -R jul-sh/tapkey
+gh attestation verify keytap-*.zip -R jul-sh/keytap
 ```
 
 ## Usage
@@ -32,36 +32,36 @@ gh attestation verify tapkey-*.zip -R jul-sh/tapkey
 Create the passkey once:
 
 ```bash
-tapkey --init
+keytap --init
 ```
 
 Then derive key material:
 
 ```bash
-tapkey [name]
+keytap [name]
 ```
 
 Use a name to derive different keys from the same passkey:
 
 ```bash
-tapkey backup
-tapkey deploy
-tapkey # The default name is `default`.
+keytap backup
+keytap deploy
+keytap # The default name is `default`.
 ```
 
 Derive key material in different formats:
 
 ```bash
-tapkey myBase64Key --format base64
-tapkey myRawKey --format raw
-tapkey smolSecrets --format age
-tapkey smolSshKey --format ssh
+keytap myBase64Key --format base64
+keytap myRawKey --format raw
+keytap smolSecrets --format age
+keytap smolSshKey --format ssh
 ```
 
 Get the public key for a derived key:
 
 ```bash
-tapkey smolSshKey --format ssh --public
+keytap smolSshKey --format ssh --public
 ```
 
 ### Encrypt and decrypt files
@@ -69,38 +69,38 @@ tapkey smolSshKey --format ssh --public
 Encrypt a file with your derived age identity:
 
 ```bash
-tapkey --encrypt secrets.env > secrets.env.age
+keytap --encrypt secrets.env > secrets.env.age
 ```
 
 Decrypt it:
 
 ```bash
-tapkey --decrypt secrets.env.age > secrets.env
+keytap --decrypt secrets.env.age > secrets.env
 ```
 
 Encrypt to yourself and others:
 
 ```bash
-tapkey --encrypt secrets.env --to age1abc... > secrets.env.age
+keytap --encrypt secrets.env --to age1abc... > secrets.env.age
 ```
 
 Or use a recipients file (one age public key per line):
 
 ```bash
-tapkey --encrypt secrets.env -R age-recipients.txt > secrets.env.age
+keytap --encrypt secrets.env -R age-recipients.txt > secrets.env.age
 ```
 
 Encrypt to others only, without including yourself:
 
 ```bash
-tapkey --encrypt secrets.env --to age1abc... --no-self > secrets.env.age
+keytap --encrypt secrets.env --to age1abc... --no-self > secrets.env.age
 ```
 
 The key name works the same way as with key derivation:
 
 ```bash
-tapkey backup --encrypt secrets.env > secrets.env.age
-tapkey backup --decrypt secrets.env.age > secrets.env
+keytap backup --encrypt secrets.env > secrets.env.age
+keytap backup --decrypt secrets.env.age > secrets.env
 ```
 
 ## Requirements
@@ -115,49 +115,49 @@ tapkey backup --decrypt secrets.env.age > secrets.env
 
 ## How It Works
 
-1. `tapkey --init` creates a passkey for the relying party `tapkey.jul.sh`. The passkey lives in your chosen passkey provider.
-2. `tapkey [name]` performs a WebAuthn assertion using the PRF extension. The PRF input is `SHA256("tapkey:prf:<name>")`, so each name requests a different PRF output directly from the passkey.
-3. The PRF output is expanded with HKDF-SHA256 using a fixed tapkey info string to produce 32 bytes of key material.
+1. `keytap --init` creates a passkey for the relying party `keytap.jul.sh`. The passkey lives in your chosen passkey provider.
+2. `keytap [name]` performs a WebAuthn assertion using the PRF extension. The PRF input is `SHA256("keytap:prf:<name>")`, so each name requests a different PRF output directly from the passkey.
+3. The PRF output is expanded with HKDF-SHA256 using a fixed keytap info string to produce 32 bytes of key material.
 4. The result is formatted as raw bytes, hex, base64, an `age` secret key, or an OpenSSH Ed25519 key. With `--encrypt`/`--decrypt`, the derived age identity is used to encrypt or decrypt files directly.
 
 Same passkey, same name, same derived key. Different names derive different keys.
 
 ### Platforms
 
-On macOS passkey support is native, authentication is as simple as touching Touch ID. 
+On macOS passkey support is native, authentication is as simple as touching Touch ID.
 
-On systems without native passkey support (like Linux), tapkey authenticates via your phone over an encrypted relay. It prints a QR code to stderr, you scan it on your phone, approve with your passkey, and the result is sent back over an end-to-end encrypted channel (X25519 + AES-256-GCM). The relay never sees plaintext key material.
+On systems without native passkey support (like Linux), keytap authenticates via your phone over an encrypted relay. It prints a QR code to stderr, you scan it on your phone, approve with your passkey, and the result is sent back over an end-to-end encrypted channel (X25519 + AES-256-GCM). The relay never sees plaintext key material.
 
 ## Security
 
-tapkey's security model is simple: the passkey is the root secret.
+keytap's security model is simple: the passkey is the root secret.
 
-- tapkey depends on your passkey provider, WebAuthn PRF, and local device authentication. It does not create a stronger trust boundary than the provider already gives you.
-- tapkey does not sync or cache derived keys itself. It derives on demand, writes to stdout, and exits. There are no local config files or cached state.
+- keytap depends on your passkey provider, WebAuthn PRF, and local device authentication. It does not create a stronger trust boundary than the provider already gives you.
+- keytap does not sync or cache derived keys itself. It derives on demand, writes to stdout, and exits. There are no local config files or cached state.
 - If you save the output, pipe it into another tool, or import it into an agent, that destination now holds the key and must be trusted accordingly.
 - The PRF inputs are public and derived from the key name. They provide stable derivation and domain separation, not secrecy.
 - Replacing the registered passkey changes every key derived from it. Treat the passkey as the root of your derived identities.
 
 ### Auth via phone over relay (non-macOS)
 
-When tapkey authenticates via your phone, additional trust considerations apply:
+When keytap authenticates via your phone, additional trust considerations apply:
 
-- **You trust the web page served to your phone.** The website served by `tapkey.jul.sh` performs the WebAuthn ceremony, receives the PRF output, encrypts it, and posts back to the host, via the relay. You trust its functionality and integrity. The web page is served inspectable, but in practice you are unlikely to review it each time.
-- The Cloudflare relay (`tapkey-relay.julsh.workers.dev`) forwards opaque encrypted blobs. It never sees plaintext key material. The channel is end-to-end encrypted with X25519 ECDH + HKDF-SHA256 + AES-256-GCM. An attacker who controls the relay can deny service but cannot decrypt the payload.
+- **You trust the web page served to your phone.** The website served by `keytap.jul.sh` performs the WebAuthn ceremony, receives the PRF output, encrypts it, and posts back to the host, via the relay. You trust its functionality and integrity. The web page is served inspectable, but in practice you are unlikely to review it each time.
+- The Cloudflare relay (`keytap-relay.julsh.workers.dev`) forwards opaque encrypted blobs. It never sees plaintext key material. The channel is end-to-end encrypted with X25519 ECDH + HKDF-SHA256 + AES-256-GCM. An attacker who controls the relay can deny service but cannot decrypt the payload.
 - On macOS hosts, none of this applies. The native passkey flow uses the hosts passkeys, or alternatively a native QR code with that opens a native direct device-to-device channel.
 
 ## Tips
 
 ### Nix flake
 
-Add tapkey to a Nix shell using the attested, signed release:
+Add keytap to a Nix shell using the attested, signed release:
 
 ```nix
 {
-  inputs.tapkey.url = "github:jul-sh/tapkey";
+  inputs.keytap.url = "github:jul-sh/keytap";
 
-  outputs = { tapkey, ... }: {
-    # add tapkey.packages.${system}.default to your buildInputs
+  outputs = { keytap, ... }: {
+    # add keytap.packages.${system}.default to your buildInputs
   };
 }
 ```
@@ -167,16 +167,16 @@ Add tapkey to a Nix shell using the attested, signed release:
 If you want to avoid re-authenticating every time, you can store a derived key in the macOS Keychain:
 
 ```bash
-security add-generic-password -s tapkey -a AGE_SECRET_KEY -w "$(tapkey myKey --format age)"
+security add-generic-password -s keytap -a AGE_SECRET_KEY -w "$(keytap myKey --format age)"
 ```
 
 ### Usage with age CLI
 
-tapkey has built-in encryption via `--encrypt` and `--decrypt`, but you can also use the `age` CLI directly with derived keys:
+keytap has built-in encryption via `--encrypt` and `--decrypt`, but you can also use the `age` CLI directly with derived keys:
 
 ```bash
-echo "secret" | age -r "$(tapkey smolSecrets --format age --public)" > secret.age
-age -d -i <(tapkey smolSecrets --format age) secret.age
+echo "secret" | age -r "$(keytap smolSecrets --format age --public)" > secret.age
+age -d -i <(keytap smolSecrets --format age) secret.age
 ```
 
 ## License

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Notarize and staple a macOS app bundle.
-# Usage: ./distribution/notarize.sh Tapkey.app
+# Usage: ./distribution/notarize.sh Keytap.app
 set -euo pipefail
 
 BUNDLE="${1:?Usage: notarize.sh <bundle>}"

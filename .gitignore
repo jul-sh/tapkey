@@ -1,5 +1,5 @@
-Tapkey.app/
-Tapkey.provisionprofile
+Keytap.app/
+Keytap.provisionprofile
 target/
 .claude/
 macos/swift-lib/.build/

@@ -1,6 +1,6 @@
 'use strict';
 
-const RELAY_URL = 'https://tapkey-relay.julsh.workers.dev';
+const RELAY_URL = 'https://keytap-relay.julsh.workers.dev';
 
 /** @param {string} value */
 function decodeBase64URL(value) {
@@ -63,7 +63,7 @@ async function encryptAndPost(payload, config) {
   const ikm = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
   const enc = new TextEncoder();
   const aesKey = await crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: enc.encode(config.sessionId), info: enc.encode('tapkey:e2e:v1') },
+    { name: 'HKDF', hash: 'SHA-256', salt: enc.encode(config.sessionId), info: enc.encode('keytap:e2e:v1') },
     ikm,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -91,7 +91,7 @@ async function runRegister(config) {
   const credential = await navigator.credentials.create({
     publicKey: {
       challenge: decodeBase64URL(config.challenge),
-      rp: { id: 'tapkey.jul.sh', name: 'tapkey' },
+      rp: { id: 'keytap.jul.sh', name: 'keytap' },
       user: { id: decodeBase64URL(config.userId), name: config.userName, displayName: config.userName },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
@@ -111,7 +111,7 @@ async function runAssertion(config) {
   const credential = await navigator.credentials.get({
     publicKey: {
       challenge: decodeBase64URL(config.challenge),
-      rpId: 'tapkey.jul.sh',
+      rpId: 'keytap.jul.sh',
       userVerification: 'required',
       timeout: 120000,
       extensions: { prf: { eval: { first: decodeBase64URL(config.prfSalt) } } },
@@ -141,9 +141,9 @@ async function main() {
   }
 
   const isRegister = config.operation === 'register';
-  $('title').textContent = isRegister ? 'Create the tapkey passkey' : 'Approve on this device';
+  $('title').textContent = isRegister ? 'Create the keytap passkey' : 'Approve on this device';
   $('summary').textContent = isRegister
-    ? 'Create the passkey once, then tapkey can recover the same keys anywhere.'
+    ? 'Create the passkey once, then keytap can recover the same keys anywhere.'
     : `Approve to derive key: ${config.keyName}`;
   status.textContent = 'Ready.';
   btn.textContent = isRegister ? 'Register' : 'Authenticate';

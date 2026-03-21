@@ -8,7 +8,7 @@ use zeroize::Zeroize;
 mod ssh;
 
 #[derive(Debug, Error)]
-pub enum TapkeyError {
+pub enum KeytapError {
     #[error("invalid key name: {reason}")]
     InvalidKeyName { reason: String },
     #[error("invalid PRF output length: got {actual}, expected 32")]
@@ -39,10 +39,10 @@ pub struct AssertionConfig {
     pub preferred_credential_id: Option<Vec<u8>>,
 }
 
-const RP_ID: &str = "tapkey.jul.sh";
-const REG_NAME: &str = "tapkey";
-const REG_USER_ID: &[u8] = b"tapkey-user";
-const HKDF_INFO: &[u8] = b"tapkey:key";
+const RP_ID: &str = "keytap.jul.sh";
+const REG_NAME: &str = "keytap";
+const REG_USER_ID: &[u8] = b"keytap-user";
+const HKDF_INFO: &[u8] = b"keytap:key";
 
 pub fn registration_config() -> RegistrationConfig {
     RegistrationConfig {
@@ -53,7 +53,7 @@ pub fn registration_config() -> RegistrationConfig {
     }
 }
 
-pub fn assertion_config(key_name: &str, preferred_credential_id: Option<Vec<u8>>) -> Result<AssertionConfig, TapkeyError> {
+pub fn assertion_config(key_name: &str, preferred_credential_id: Option<Vec<u8>>) -> Result<AssertionConfig, KeytapError> {
     validate_key_name(key_name)?;
     Ok(AssertionConfig {
         rp_id: RP_ID.into(),
@@ -63,25 +63,25 @@ pub fn assertion_config(key_name: &str, preferred_credential_id: Option<Vec<u8>>
     })
 }
 
-pub fn prf_salt_for_name(key_name: &str) -> Result<Vec<u8>, TapkeyError> {
+pub fn prf_salt_for_name(key_name: &str) -> Result<Vec<u8>, KeytapError> {
     validate_key_name(key_name)?;
-    Ok(Sha256::digest(format!("tapkey:prf:{key_name}")).to_vec())
+    Ok(Sha256::digest(format!("keytap:prf:{key_name}")).to_vec())
 }
 
-pub fn derive_raw_key(prf_output: &[u8]) -> Result<Vec<u8>, TapkeyError> {
+pub fn derive_raw_key(prf_output: &[u8]) -> Result<Vec<u8>, KeytapError> {
     if prf_output.len() != 32 {
-        return Err(TapkeyError::InvalidPrfOutputLength { actual: prf_output.len() });
+        return Err(KeytapError::InvalidPrfOutputLength { actual: prf_output.len() });
     }
     let mut okm = [0u8; 32];
     Hkdf::<Sha256>::new(None, prf_output)
         .expand(HKDF_INFO, &mut okm)
-        .map_err(|e| TapkeyError::Internal { message: e.to_string() })?;
+        .map_err(|e| KeytapError::Internal { message: e.to_string() })?;
     let result = okm.to_vec();
     okm.zeroize();
     Ok(result)
 }
 
-pub fn format_private_key(raw_key: &[u8], format: PrivateKeyFormat) -> Result<Vec<u8>, TapkeyError> {
+pub fn format_private_key(raw_key: &[u8], format: PrivateKeyFormat) -> Result<Vec<u8>, KeytapError> {
     let key = to_32(raw_key)?;
     match format {
         PrivateKeyFormat::Hex => Ok(hex::encode(key).into_bytes()),
@@ -92,7 +92,7 @@ pub fn format_private_key(raw_key: &[u8], format: PrivateKeyFormat) -> Result<Ve
     }
 }
 
-pub fn format_public_key(raw_key: &[u8], format: PublicKeyFormat) -> Result<String, TapkeyError> {
+pub fn format_public_key(raw_key: &[u8], format: PublicKeyFormat) -> Result<String, KeytapError> {
     let key = to_32(raw_key)?;
     match format {
         PublicKeyFormat::SshPublicKey => Ok(ssh::public_key_line(key)),
@@ -108,8 +108,8 @@ pub fn format_public_key(raw_key: &[u8], format: PublicKeyFormat) -> Result<Stri
     }
 }
 
-fn to_32(raw_key: &[u8]) -> Result<&[u8; 32], TapkeyError> {
-    raw_key.try_into().map_err(|_| TapkeyError::Internal {
+fn to_32(raw_key: &[u8]) -> Result<&[u8; 32], KeytapError> {
+    raw_key.try_into().map_err(|_| KeytapError::Internal {
         message: format!("raw key must be 32 bytes, got {}", raw_key.len()),
     })
 }
@@ -122,15 +122,15 @@ fn bech32_encode(hrp: &str, data: &[u8]) -> String {
     bech32::encode::<Bech32>(Hrp::parse(hrp).unwrap(), data).unwrap()
 }
 
-fn validate_key_name(name: &str) -> Result<(), TapkeyError> {
+fn validate_key_name(name: &str) -> Result<(), KeytapError> {
     if name.is_empty() {
-        return Err(TapkeyError::InvalidKeyName { reason: "key name must not be empty".into() });
+        return Err(KeytapError::InvalidKeyName { reason: "key name must not be empty".into() });
     }
     if name.len() > 128 {
-        return Err(TapkeyError::InvalidKeyName { reason: "key name must not exceed 128 characters".into() });
+        return Err(KeytapError::InvalidKeyName { reason: "key name must not exceed 128 characters".into() });
     }
     if !name.is_ascii() {
-        return Err(TapkeyError::InvalidKeyName { reason: "key name must be ASCII-only".into() });
+        return Err(KeytapError::InvalidKeyName { reason: "key name must be ASCII-only".into() });
     }
     Ok(())
 }

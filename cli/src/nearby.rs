@@ -9,8 +9,8 @@ use tungstenite::stream::MaybeTlsStream;
 use tungstenite::{connect, Message, WebSocket};
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
-const DEFAULT_RELAY_URL: &str = "wss://tapkey-relay.julsh.workers.dev";
-const PAGE_URL: &str = "https://tapkey.jul.sh/n";
+const DEFAULT_RELAY_URL: &str = "wss://keytap-relay.julsh.workers.dev";
+const PAGE_URL: &str = "https://keytap.jul.sh/n";
 const WS_TIMEOUT_SECS: u64 = 300; // 5 minutes
 
 /// Authenticate via nearby device and return the PRF output.
@@ -32,7 +32,7 @@ fn run_nearby_flow(operation: &str, name: &str) -> (Vec<u8>, Vec<u8>) {
         .ok(); // ok if already installed
 
     let relay_url =
-        std::env::var("TAPKEY_RELAY_URL").unwrap_or_else(|_| DEFAULT_RELAY_URL.to_string());
+        std::env::var("KEYTAP_RELAY_URL").unwrap_or_else(|_| DEFAULT_RELAY_URL.to_string());
 
     // Generate X25519 keypair
     let cli_secret = EphemeralSecret::random_from_rng(OsRng);
@@ -44,7 +44,7 @@ fn run_nearby_flow(operation: &str, name: &str) -> (Vec<u8>, Vec<u8>) {
     let session_id = URL_SAFE_NO_PAD.encode(session_bytes);
 
     // Build QR config
-    let prf_salt = tapkey_core::prf_salt_for_name(name).unwrap_or_else(|e| {
+    let prf_salt = keytap_core::prf_salt_for_name(name).unwrap_or_else(|e| {
         crate::die(&format!("invalid key name: {e}"));
     });
 
@@ -131,8 +131,8 @@ fn build_qr_config(
     });
 
     if operation == "register" {
-        config["u"] = serde_json::json!(URL_SAFE_NO_PAD.encode(b"tapkey-user"));
-        config["un"] = serde_json::json!("tapkey");
+        config["u"] = serde_json::json!(URL_SAFE_NO_PAD.encode(b"keytap-user"));
+        config["un"] = serde_json::json!("keytap");
     }
 
     config.to_string()
@@ -216,10 +216,10 @@ fn decrypt_response(
     // ECDH shared secret
     let shared_secret = cli_secret.diffie_hellman(&phone_pk);
 
-    // HKDF-SHA256(ikm=shared, salt=session_id, info="tapkey:e2e:v1") → 32-byte AES key
+    // HKDF-SHA256(ikm=shared, salt=session_id, info="keytap:e2e:v1") → 32-byte AES key
     let hk = Hkdf::<Sha256>::new(Some(session_id.as_bytes()), shared_secret.as_bytes());
     let mut aes_key = [0u8; 32];
-    hk.expand(b"tapkey:e2e:v1", &mut aes_key)
+    hk.expand(b"keytap:e2e:v1", &mut aes_key)
         .unwrap_or_else(|e| crate::die(&format!("HKDF expansion failed: {e}")));
 
     // AES-256-GCM decrypt

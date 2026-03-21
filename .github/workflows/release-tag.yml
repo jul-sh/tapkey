@@ -28,8 +28,8 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           SHA="${GITHUB_SHA::7}"
           # Rename from SHA-based to tag-based name
-          mv "tapkey-${SHA}-arm64.zip" "tapkey-${TAG}-arm64.zip"
-          echo "zip_name=tapkey-${TAG}-arm64.zip" >> "$GITHUB_OUTPUT"
+          mv "keytap-${SHA}-arm64.zip" "keytap-${TAG}-arm64.zip"
+          echo "zip_name=keytap-${TAG}-arm64.zip" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         env:
           AGE_SECRET_KEY: ${{ secrets.AGE_SECRET_KEY }}
@@ -57,10 +57,10 @@ jobs:
       - name: Build
         id: package
         run: |
-          cargo build --release -p tapkey --no-default-features
+          cargo build --release -p keytap --no-default-features
           TAG="${GITHUB_REF#refs/tags/}"
-          ZIP_NAME="tapkey-${TAG}-linux-x86_64.zip"
-          zip "$ZIP_NAME" -j target/release/tapkey
+          ZIP_NAME="keytap-${TAG}-linux-x86_64.zip"
+          zip "$ZIP_NAME" -j target/release/keytap
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Attest
@@ -101,7 +101,7 @@ jobs:
             gh release create "$TAG" \
               "artifacts/macos-arm64/$MACOS_ZIP" \
               "artifacts/linux-x86_64/$LINUX_ZIP" \
-              --title "tapkey $TAG" \
+              --title "keytap $TAG" \
               --generate-notes
           fi
         env:
@@ -119,8 +119,8 @@ jobs:
           MACOS_HASH=$(nix hash file --sri "artifacts/macos-arm64/$MACOS_ZIP")
           LINUX_HASH=$(nix hash file --sri "artifacts/linux-x86_64/$LINUX_ZIP")
 
-          MACOS_URL="https://github.com/jul-sh/tapkey/releases/download/${TAG}/${MACOS_ZIP}"
-          LINUX_URL="https://github.com/jul-sh/tapkey/releases/download/${TAG}/${LINUX_ZIP}"
+          MACOS_URL="https://github.com/jul-sh/keytap/releases/download/${TAG}/${MACOS_ZIP}"
+          LINUX_URL="https://github.com/jul-sh/keytap/releases/download/${TAG}/${LINUX_ZIP}"
 
           # Switch to main branch for the commit (tag checkout is detached HEAD)
           git fetch origin main

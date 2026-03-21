@@ -23,7 +23,7 @@ jobs:
         run: |
           nix develop --command make package
           SHA="${GITHUB_SHA::7}"
-          echo "zip_name=tapkey-${SHA}-arm64.zip" >> "$GITHUB_OUTPUT"
+          echo "zip_name=keytap-${SHA}-arm64.zip" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
         env:
           AGE_SECRET_KEY: ${{ secrets.AGE_SECRET_KEY }}
@@ -51,10 +51,10 @@ jobs:
       - name: Build
         id: package
         run: |
-          cargo build --release -p tapkey --no-default-features
+          cargo build --release -p keytap --no-default-features
           SHA="${GITHUB_SHA::7}"
-          ZIP_NAME="tapkey-${SHA}-linux-x86_64.zip"
-          zip "$ZIP_NAME" -j target/release/tapkey
+          ZIP_NAME="keytap-${SHA}-linux-x86_64.zip"
+          zip "$ZIP_NAME" -j target/release/keytap
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Attest
@@ -84,7 +84,7 @@ jobs:
           gh release create "$SHA" \
             "artifacts/macos-arm64/$MACOS_ZIP" \
             "artifacts/linux-x86_64/$LINUX_ZIP" \
-            --title "tapkey $SHA" \
+            --title "keytap $SHA" \
             --target "$GITHUB_SHA" \
             --generate-notes \
             --prerelease
