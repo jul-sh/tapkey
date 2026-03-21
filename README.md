@@ -157,39 +157,28 @@ For example:
 
 This is cleaner than reusing one key everywhere, and easier to reason about than a pile of manually managed key files.
 
+## Security
 
-## Security model
+keytap is a convenience utility, not a high-assurance security tool. It is designed to make passkey-derived keys easy to use across machines. If your threat model involves nation-state adversaries, targeted attacks, or secrets where compromise has severe consequences, use purpose-built tools instead:
 
-`keytap` is best understood as a convenience tool with a clean deterministic model, not as a maximal-security key management system.
+- **SSH keys**: Generate directly with `ssh-keygen` and manage per-device keys. Use [FIDO2 resident keys](https://developers.yubico.com/SSH/Securing_git_with_SSH_and_FIDO2.html) on a hardware token for phishing-resistant SSH without syncing private material at all.
+- **age encryption**: Generate standalone identities with `age-keygen`. See [age](https://github.com/FiloSottile/age) and [age-plugin-yubikey](https://github.com/str4d/age-plugin-yubikey) for hardware-bound identities.
 
-If your threat model requires hardware-bound keys, strict per-device isolation, or minimizing trust in synced credentials, then traditional tools are often the better choice:
+keytap ties all derived keys to a single passkey registered under the `keytap.jul.sh` relying party. That means you trust your passkey provider, the WebAuthn PRF extension, and the `keytap.jul.sh` domain. This is a meaningful trust surface that the tools above avoid entirely.
 
-- use `ssh-keygen` or FIDO2-backed SSH keys for SSH
-- use `age-keygen` or hardware-backed `age` setups for encryption
+With that said, here is how keytap works within those constraints:
 
-What `keytap` optimizes for is different:
+- keytap does not sync or cache derived keys. It derives on demand, writes to stdout, and exits. There are no local config files or cached state.
+- If you save the output, pipe it into another tool, or import it into an agent, that destination now holds the key and must be trusted accordingly.
+- The PRF inputs are public and derived from the key name. They provide stable derivation and domain separation, not secrecy.
+- Replacing the registered passkey changes every key derived from it. Treat the passkey as the root of your derived identities.
 
-- one synced passkey
-- reproducible derived keys
-- minimal setup on a new machine
-- no private key file transfer step
+### Auth via phone over relay (fallback)
 
-Within that model:
+When keytap authenticates via your phone, additional trust considerations apply:
 
-- `keytap` derives keys on demand and does not maintain a local key database
-- if you save or pipe revealed private material somewhere, that destination becomes part of your trust boundary
-- replacing the underlying passkey changes every derived key
-- the key name is not secret; it is used for stable separation between derived keys
-
-### Extra trust assumptions in phone mode
-
-When using the QR-code / phone flow, there are additional trust assumptions:
-
-- you trust the web page served at `keytap.jul.sh` to perform the WebAuthn ceremony correctly
-- you trust the nearby flow implementation to encrypt the response before it reaches the relay
-- the relay forwards encrypted blobs; it can block or drop traffic, but it is not supposed to learn plaintext key material
-
-So the nearby mode is practical and useful, but it is not equivalent to a purely local hardware-backed flow.
+- **You trust the web page served to your phone.** The website served by `keytap.jul.sh` performs the WebAuthn ceremony, receives the PRF output, encrypts it, and posts back to the host, via the relay. You trust its functionality and integrity. The web page is served inspectable, but in practice you are unlikely to review it each time.
+- The Cloudflare relay (`keytap-relay.julsh.workers.dev`) forwards opaque encrypted blobs. It never sees plaintext key material. The channel is end-to-end encrypted with X25519 ECDH + HKDF-SHA256 + AES-256-GCM. An attacker who controls the relay can deny service but cannot decrypt the payload.
 
 ## Tips
 
