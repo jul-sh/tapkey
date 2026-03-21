@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::str::FromStr;
 
 /// Encrypt a file to self (derived age identity) plus optional additional recipients.
-/// Writes output to `<path>.age`.
+/// Writes ciphertext to stdout.
 pub fn encrypt_file(
     raw_key: &[u8],
     path: &str,
@@ -70,12 +70,9 @@ pub fn encrypt_file(
         crate::die(&format!("encryption failed: {e}"));
     });
 
-    let out_path = format!("{path}.age");
-    fs::write(&out_path, &encrypted).unwrap_or_else(|e| {
-        crate::die(&format!("failed to write {out_path}: {e}"));
+    std::io::stdout().write_all(&encrypted).unwrap_or_else(|e| {
+        crate::die(&format!("write failed: {e}"));
     });
-
-    eprintln!("{out_path}");
 }
 
 /// Decrypt a `.age` file using the derived age identity. Writes plaintext to stdout.

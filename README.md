@@ -69,10 +69,10 @@ tapkey public-key smolSshKey --format ssh
 Encrypt a file with your derived age identity:
 
 ```bash
-tapkey --encrypt secrets.env
+tapkey --encrypt secrets.env > secrets.env.age
 ```
 
-This writes `secrets.env.age`, encrypted to your passkey. Decrypt it:
+Decrypt it:
 
 ```bash
 tapkey --decrypt secrets.env.age > secrets.env
@@ -81,25 +81,25 @@ tapkey --decrypt secrets.env.age > secrets.env
 Encrypt to yourself and others:
 
 ```bash
-tapkey --encrypt secrets.env --to age1abc...
+tapkey --encrypt secrets.env --to age1abc... > secrets.env.age
 ```
 
 Or use a recipients file (one age public key per line):
 
 ```bash
-tapkey --encrypt secrets.env -R age-recipients.txt
+tapkey --encrypt secrets.env -R age-recipients.txt > secrets.env.age
 ```
 
 Encrypt to others only, without including yourself:
 
 ```bash
-tapkey --encrypt secrets.env --to age1abc... --no-self
+tapkey --encrypt secrets.env --to age1abc... --no-self > secrets.env.age
 ```
 
 The key name works the same way as with key derivation:
 
 ```bash
-tapkey backup --encrypt secrets.env
+tapkey backup --encrypt secrets.env > secrets.env.age
 tapkey backup --decrypt secrets.env.age > secrets.env
 ```
 
