@@ -58,10 +58,10 @@ tapkey smolSecrets --format age
 tapkey smolSshKey --format ssh
 ```
 
-Get the public key for a derived key, e.g. a key named `smolSshKey`:
+Get the public key for a derived key:
 
 ```bash
-tapkey public-key smolSshKey --format ssh
+tapkey smolSshKey --format ssh --public
 ```
 
 ### Encrypt and decrypt files
@@ -175,7 +175,7 @@ security add-generic-password -s tapkey -a AGE_SECRET_KEY -w "$(tapkey myKey --f
 tapkey has built-in encryption via `--encrypt` and `--decrypt`, but you can also use the `age` CLI directly with derived keys:
 
 ```bash
-echo "secret" | age -r "$(tapkey public-key smolSecrets)" > secret.age
+echo "secret" | age -r "$(tapkey smolSecrets --format age --public)" > secret.age
 age -d -i <(tapkey smolSecrets --format age) secret.age
 ```
 

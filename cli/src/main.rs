@@ -1,7 +1,7 @@
 mod encrypt;
 mod nearby;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, ValueEnum};
 use std::io::Write;
 use tapkey_core::{PrivateKeyFormat, PublicKeyFormat};
 use zeroize::Zeroizing;
@@ -13,9 +13,6 @@ struct Cli {
     #[arg(long)]
     init: bool,
 
-    #[command(subcommand)]
-    command: Option<Cmd>,
-
     /// Key name for domain separation
     #[arg(default_value = "default", conflicts_with = "init")]
     name: Option<String>,
@@ -23,6 +20,10 @@ struct Cli {
     /// Output format
     #[arg(long, default_value = "hex", conflicts_with = "init")]
     format: Format,
+
+    /// Output the public key instead of the private key
+    #[arg(long, conflicts_with_all = ["init", "encrypt", "decrypt"])]
+    public: bool,
 
     /// Encrypt a file with the derived age identity
     #[arg(long, conflicts_with_all = ["init", "format"])]
@@ -45,19 +46,6 @@ struct Cli {
     no_self: bool,
 }
 
-#[derive(Subcommand)]
-enum Cmd {
-    /// Show the public key for a derived key
-    PublicKey {
-        /// Key name for domain separation
-        #[arg(default_value = "default")]
-        name: String,
-        /// Output format
-        #[arg(long, default_value = "age")]
-        format: Format,
-    },
-}
-
 #[derive(Clone, Copy, ValueEnum)]
 pub(crate) enum Format {
     Hex,
@@ -75,19 +63,17 @@ fn main() {
         return;
     }
 
-    if let Some(Cmd::PublicKey { name, format }) = cli.command {
-        if matches!(format, Format::Raw) {
-            die("--format raw is not supported for public-key");
-        }
-        let prf_output = authenticate(&name);
-        let raw_key = derive_key(&prf_output);
-        emit_public_key(&raw_key, format);
-        return;
-    }
-
     let name = cli.name.as_deref().unwrap_or("default");
     let prf_output = authenticate(name);
     let raw_key = derive_key(&prf_output);
+
+    if cli.public {
+        if matches!(cli.format, Format::Raw) {
+            die("--format raw is not supported with --public");
+        }
+        emit_public_key(&raw_key, cli.format);
+        return;
+    }
 
     if let Some(ref path) = cli.encrypt {
         encrypt::encrypt_file(&raw_key, path, &cli.recipients, &cli.recipients_file, !cli.no_self);
@@ -175,7 +161,7 @@ fn emit_public_key(raw_key: &[u8], format: Format) {
         Format::Base64 => PublicKeyFormat::Base64,
         Format::Age => PublicKeyFormat::AgeRecipient,
         Format::Ssh => PublicKeyFormat::SshPublicKey,
-        Format::Raw => die("--format raw is not supported for public-key"),
+        Format::Raw => die("--format raw is not supported with --public"),
     };
     match tapkey_core::format_public_key(raw_key, pub_format) {
         Ok(s) => println!("{s}"),
