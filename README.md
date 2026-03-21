@@ -2,7 +2,7 @@
 
 <img src="macos/keytap.icon/Assets/icon.png" width="128" alt="keytap icon" />
 
-`keytap` is a CLI that turns one passkey into reproducible keys you can derive anywhere.
+`keytap` is a CLI that turns one passkey into unique keys you can reproduce anywhere.
 
 If your passkey already syncs across your devices, `keytap` lets you use that passkey as a stable root secret.
 From that root, it can deterministically derive:
