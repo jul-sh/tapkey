@@ -34,17 +34,6 @@ Instead of syncing the derived key, it asks your passkey for a stable PRF output
 
 In other words: **sync the passkey once, derive everything else on demand.**
 
-## What you can do with it
-
-With one passkey, you can:
-
-- derive an `age` recipient or secret key
-- derive an SSH public/private keypair
-- derive raw 32-byte key material for your own tooling
-- encrypt files with the derived `age` identity
-- decrypt those files later on another machine
-- encrypt to yourself and additional recipients at the same time
-
 ## How it works
 
 At a high level, `keytap` does four things:
@@ -62,7 +51,6 @@ Examples:
 - `default` for your main identity
 - `github` for GitHub SSH auth
 - `backup` for encrypted backups
-- `prod-deploy` for deployment-related material
 
 The important property is predictability:
 
@@ -113,7 +101,7 @@ gh attestation verify keytap-*.zip -R jul-sh/keytap
 
 ## Quick start
 
-### 1. Register the passkey once
+### 1. Create the passkey once
 
 ```bash
 keytap init
@@ -210,7 +198,7 @@ keytap reveal files --format age
 
 ### Encrypt and decrypt files
 
-Encrypt a file to your derived identity:
+Encrypt a file with your derived age identity:
 
 ```bash
 keytap encrypt secrets.env > secrets.env.age
@@ -258,7 +246,6 @@ For example:
 - `gitlab`
 - `backup`
 - `terraform`
-- `prod-deploy`
 - `notes`
 
 This is cleaner than reusing one key everywhere, and easier to reason about than a pile of manually managed key files.
