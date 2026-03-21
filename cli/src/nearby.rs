@@ -86,7 +86,7 @@ fn run_nearby_flow(operation: &str, name: &str) -> (Vec<u8>, Vec<u8>) {
 
     // Print QR code to stderr (keep stdout clean for key output)
     eprintln!();
-    eprintln!("Scan this QR code with your phone:");
+    eprintln!("Scan to authenticate with a passkey on your phone (end-to-end encrypted):");
     eprintln!();
     let qr_string = qr2term::generate_qr_string(&url).unwrap_or_else(|e| {
         crate::die(&format!("failed to render QR code: {e}"));

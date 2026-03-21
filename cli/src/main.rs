@@ -87,17 +87,25 @@ fn main() {
 /// Authenticate with passkey and return the PRF output.
 #[cfg(feature = "native-passkey")]
 fn authenticate(name: &str) -> Zeroizing<Vec<u8>> {
-    match tapkey_macos::assert(name) {
-        tapkey_macos::AssertionOutcome::Success { prf_output, .. } => Zeroizing::new(prf_output),
-        tapkey_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
-            die(&msg);
-        }
-        tapkey_macos::AssertionOutcome::Error(msg) => {
-            eprintln!("Native passkey failed: {msg}");
-            eprintln!("Falling back to QR code flow…");
-            Zeroizing::new(nearby::authenticate_nearby(name))
+    for attempt in 1..=3 {
+        match tapkey_macos::assert(name) {
+            tapkey_macos::AssertionOutcome::Success { prf_output, .. } => {
+                return Zeroizing::new(prf_output);
+            }
+            tapkey_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
+                die(&msg);
+            }
+            tapkey_macos::AssertionOutcome::Error(msg) => {
+                if attempt < 3 {
+                    eprintln!("Native passkey failed (attempt {attempt}/3): {msg}");
+                } else {
+                    eprintln!("Couldn't open native passkey flow.");
+                    return Zeroizing::new(nearby::authenticate_nearby(name));
+                }
+            }
         }
     }
+    unreachable!()
 }
 
 #[cfg(not(feature = "native-passkey"))]
@@ -113,17 +121,24 @@ fn derive_key(prf_output: &[u8]) -> Zeroizing<Vec<u8>> {
 
 #[cfg(feature = "native-passkey")]
 fn register() {
-    match tapkey_macos::register() {
-        tapkey_macos::RegistrationOutcome::Success => {
-            eprintln!("Passkey registered successfully.");
-        }
-        tapkey_macos::RegistrationOutcome::Error(msg) if msg == "cancelled" => {
-            die(&msg);
-        }
-        tapkey_macos::RegistrationOutcome::Error(msg) => {
-            eprintln!("Native passkey failed: {msg}");
-            eprintln!("Falling back to QR code flow…");
-            nearby::register_nearby();
+    for attempt in 1..=3 {
+        match tapkey_macos::register() {
+            tapkey_macos::RegistrationOutcome::Success => {
+                eprintln!("Passkey registered successfully.");
+                return;
+            }
+            tapkey_macos::RegistrationOutcome::Error(msg) if msg == "cancelled" => {
+                die(&msg);
+            }
+            tapkey_macos::RegistrationOutcome::Error(msg) => {
+                if attempt < 3 {
+                    eprintln!("Native passkey failed (attempt {attempt}/3): {msg}");
+                } else {
+                    eprintln!("Couldn't open native passkey flow.");
+                    nearby::register_nearby();
+                    return;
+                }
+            }
         }
     }
 }
