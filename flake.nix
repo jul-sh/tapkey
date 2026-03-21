@@ -17,11 +17,11 @@
         releases = {
           aarch64-darwin = {
             url = "https://github.com/jul-sh/tapkey/releases/download/v2.0.0/tapkey-v2.0.0-arm64.zip";
-            hash = "sha256-qG7v9NocPNP40EW97KCgN+4mWmo2f2LB61pJQ2mvRis=";
+            hash = "sha256-mc/gxtLJVLkeKiMRRQ6OhcZOaIBeTQ//cb2cssRYBBc=";
           };
           x86_64-linux = {
             url = "https://github.com/jul-sh/tapkey/releases/download/v2.0.0/tapkey-v2.0.0-linux-x86_64.zip";
-            hash = "sha256-8D3fJpUeH6dSMFe/mFi6Ul6sfr4X0oEt9lHKYJWirTY=";
+            hash = "sha256-kSrR5gqQ9pY5X1lXRl/0//t/1iZ1u2Ytu2Q08nq7bjA=";
           };
         };
       in
