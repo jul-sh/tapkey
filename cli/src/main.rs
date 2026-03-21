@@ -4,6 +4,7 @@ mod nearby;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::io::Write;
 use tapkey_core::{PrivateKeyFormat, PublicKeyFormat};
+use zeroize::Zeroizing;
 
 #[derive(Parser)]
 #[command(name = "tapkey", version)]
@@ -32,15 +33,15 @@ struct Cli {
     decrypt: Option<String>,
 
     /// Additional age recipient (can be repeated)
-    #[arg(long = "to", conflicts_with_all = ["init", "decrypt"])]
+    #[arg(long = "to", requires = "encrypt", conflicts_with_all = ["init", "decrypt"])]
     recipients: Vec<String>,
 
     /// File containing age recipients (one per line)
-    #[arg(short = 'R', conflicts_with_all = ["init", "decrypt"])]
+    #[arg(short = 'R', requires = "encrypt", conflicts_with_all = ["init", "decrypt"])]
     recipients_file: Vec<String>,
 
     /// Don't include self as a recipient when encrypting
-    #[arg(long, conflicts_with_all = ["init", "decrypt"])]
+    #[arg(long, requires = "encrypt", conflicts_with_all = ["init", "decrypt"])]
     no_self: bool,
 }
 
@@ -85,47 +86,43 @@ fn main() {
     }
 
     let name = cli.name.as_deref().unwrap_or("default");
+    let prf_output = authenticate(name);
+    let raw_key = derive_key(&prf_output);
 
     if let Some(ref path) = cli.encrypt {
-        let prf_output = authenticate(name);
-        let raw_key = derive_key(&prf_output);
         encrypt::encrypt_file(&raw_key, path, &cli.recipients, &cli.recipients_file, !cli.no_self);
     } else if let Some(ref path) = cli.decrypt {
-        let prf_output = authenticate(name);
-        let raw_key = derive_key(&prf_output);
         encrypt::decrypt_file(&raw_key, path);
     } else {
-        let prf_output = authenticate(name);
-        let raw_key = derive_key(&prf_output);
         emit_private_key(&raw_key, cli.format);
     }
 }
 
 /// Authenticate with passkey and return the PRF output.
 #[cfg(feature = "native-passkey")]
-fn authenticate(name: &str) -> Vec<u8> {
+fn authenticate(name: &str) -> Zeroizing<Vec<u8>> {
     match tapkey_macos::assert(name) {
-        tapkey_macos::AssertionOutcome::Success { prf_output, .. } => prf_output,
+        tapkey_macos::AssertionOutcome::Success { prf_output, .. } => Zeroizing::new(prf_output),
         tapkey_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
             die(&msg);
         }
         tapkey_macos::AssertionOutcome::Error(msg) => {
             eprintln!("Native passkey failed: {msg}");
             eprintln!("Falling back to QR code flow…");
-            nearby::authenticate_nearby(name)
+            Zeroizing::new(nearby::authenticate_nearby(name))
         }
     }
 }
 
 #[cfg(not(feature = "native-passkey"))]
-fn authenticate(name: &str) -> Vec<u8> {
-    nearby::authenticate_nearby(name)
+fn authenticate(name: &str) -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(nearby::authenticate_nearby(name))
 }
 
-fn derive_key(prf_output: &[u8]) -> Vec<u8> {
-    tapkey_core::derive_raw_key(prf_output).unwrap_or_else(|e| {
+fn derive_key(prf_output: &[u8]) -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(tapkey_core::derive_raw_key(prf_output).unwrap_or_else(|e| {
         die(&format!("key derivation failed: {e}"));
-    })
+    }))
 }
 
 #[cfg(feature = "native-passkey")]

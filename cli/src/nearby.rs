@@ -241,11 +241,15 @@ fn decrypt_response(
         .unwrap_or_else(|e| crate::die(&format!("invalid credentialId: {e}")));
 
     let prf_first = if let Some(prf_b64) = payload["prfFirst"].as_str() {
-        URL_SAFE_NO_PAD
+        let decoded = URL_SAFE_NO_PAD
             .decode(prf_b64)
-            .unwrap_or_else(|e| crate::die(&format!("invalid prfFirst: {e}")))
+            .unwrap_or_else(|e| crate::die(&format!("invalid prfFirst: {e}")));
+        if decoded.is_empty() {
+            crate::die("passkey provider returned empty PRF output — it may not support the PRF extension");
+        }
+        decoded
     } else {
-        Vec::new()
+        crate::die("passkey provider did not return PRF output — it may not support the PRF extension");
     };
 
     (credential_id, prf_first)

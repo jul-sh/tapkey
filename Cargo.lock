@@ -1769,6 +1769,7 @@ dependencies = [
  "tungstenite",
  "ureq",
  "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]

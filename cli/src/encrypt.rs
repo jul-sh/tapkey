@@ -2,6 +2,9 @@ use age::x25519;
 use std::fs;
 use std::io::{Read, Write};
 use std::str::FromStr;
+use zeroize::Zeroizing;
+
+const MAX_FILE_SIZE: u64 = 1 << 30; // 1 GiB
 
 /// Encrypt a file to self (derived age identity) plus optional additional recipients.
 /// Writes ciphertext to stdout.
@@ -12,6 +15,8 @@ pub fn encrypt_file(
     recipients_files: &[String],
     include_self: bool,
 ) {
+    check_file_size(path);
+
     let plaintext = fs::read(path).unwrap_or_else(|e| {
         crate::die(&format!("failed to read {path}: {e}"));
     });
@@ -77,6 +82,8 @@ pub fn encrypt_file(
 
 /// Decrypt a `.age` file using the derived age identity. Writes plaintext to stdout.
 pub fn decrypt_file(raw_key: &[u8], path: &str) {
+    check_file_size(path);
+
     let ciphertext = fs::read(path).unwrap_or_else(|e| {
         crate::die(&format!("failed to read {path}: {e}"));
     });
@@ -104,10 +111,27 @@ pub fn decrypt_file(raw_key: &[u8], path: &str) {
 }
 
 fn identity_from_raw_key(raw_key: &[u8]) -> x25519::Identity {
-    let secret_key_str = tapkey_core::format_private_key(raw_key, tapkey_core::PrivateKeyFormat::AgeSecretKey)
-        .unwrap_or_else(|e| crate::die(&format!("key format error: {e}")));
-    let secret_key_str = String::from_utf8(secret_key_str)
-        .unwrap_or_else(|e| crate::die(&format!("key format error: {e}")));
+    let secret_key_bytes = Zeroizing::new(
+        tapkey_core::format_private_key(raw_key, tapkey_core::PrivateKeyFormat::AgeSecretKey)
+            .unwrap_or_else(|e| crate::die(&format!("key format error: {e}")))
+    );
+    let secret_key_str = Zeroizing::new(
+        String::from_utf8(secret_key_bytes.to_vec())
+            .unwrap_or_else(|e| crate::die(&format!("key format error: {e}")))
+    );
     x25519::Identity::from_str(&secret_key_str)
         .unwrap_or_else(|e| crate::die(&format!("invalid age identity: {e}")))
+}
+
+fn check_file_size(path: &str) {
+    let metadata = fs::metadata(path).unwrap_or_else(|e| {
+        crate::die(&format!("failed to stat {path}: {e}"));
+    });
+    if metadata.len() > MAX_FILE_SIZE {
+        crate::die(&format!(
+            "{path} is too large ({} bytes, max {} bytes)",
+            metadata.len(),
+            MAX_FILE_SIZE
+        ));
+    }
 }

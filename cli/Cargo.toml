@@ -36,3 +36,4 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 aes-gcm = "0.10"
 getrandom = "0.2"
 ureq = "3"
+zeroize = "1"
