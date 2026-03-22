@@ -176,6 +176,16 @@ private func setupApp() -> (NSApplication, NSWindow) {
     window.center()
     window.makeKeyAndOrderFront(nil)
     app.activate(ignoringOtherApps: true)
+
+    // Pump the run loop briefly so NSApplication and the authorization
+    // framework finish lazy initialization before we issue a passkey
+    // request.  Without this, the first invocation in a fresh process
+    // can fail with error 1004 ("passkey provider not available").
+    let deadline = Date(timeIntervalSinceNow: 0.2)
+    while Date() < deadline {
+        app.nextEvent(matching: .any, until: deadline, inMode: .default, dequeue: true)
+    }
+
     return (app, window)
 }
 

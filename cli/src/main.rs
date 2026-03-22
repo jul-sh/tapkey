@@ -121,25 +121,18 @@ fn main() {
 /// Authenticate with passkey and return the PRF output.
 #[cfg(feature = "native-passkey")]
 fn authenticate(name: &str) -> Zeroizing<Vec<u8>> {
-    for attempt in 1..=3 {
-        match keytap_macos::assert(name) {
-            keytap_macos::AssertionOutcome::Success { prf_output, .. } => {
-                return Zeroizing::new(prf_output);
-            }
-            keytap_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
-                die(&msg);
-            }
-            keytap_macos::AssertionOutcome::Error(msg) => {
-                if attempt < 3 {
-                    eprintln!("Native passkey failed (attempt {attempt}/3): {msg}");
-                } else {
-                    eprintln!("Couldn't open native passkey flow.");
-                    return Zeroizing::new(nearby::authenticate_nearby(name));
-                }
-            }
+    match keytap_macos::assert(name) {
+        keytap_macos::AssertionOutcome::Success { prf_output, .. } => {
+            Zeroizing::new(prf_output)
+        }
+        keytap_macos::AssertionOutcome::Error(msg) if msg == "cancelled" => {
+            die(&msg);
+        }
+        keytap_macos::AssertionOutcome::Error(msg) => {
+            eprintln!("Couldn't open native passkey flow: {msg}");
+            Zeroizing::new(nearby::authenticate_nearby(name))
         }
     }
-    unreachable!()
 }
 
 #[cfg(not(feature = "native-passkey"))]
@@ -155,24 +148,16 @@ fn derive_key(prf_output: &[u8]) -> Zeroizing<Vec<u8>> {
 
 #[cfg(feature = "native-passkey")]
 fn register() {
-    for attempt in 1..=3 {
-        match keytap_macos::register() {
-            keytap_macos::RegistrationOutcome::Success => {
-                eprintln!("Passkey registered successfully.");
-                return;
-            }
-            keytap_macos::RegistrationOutcome::Error(msg) if msg == "cancelled" => {
-                die(&msg);
-            }
-            keytap_macos::RegistrationOutcome::Error(msg) => {
-                if attempt < 3 {
-                    eprintln!("Native passkey failed (attempt {attempt}/3): {msg}");
-                } else {
-                    eprintln!("Couldn't open native passkey flow.");
-                    nearby::register_nearby();
-                    return;
-                }
-            }
+    match keytap_macos::register() {
+        keytap_macos::RegistrationOutcome::Success => {
+            eprintln!("Passkey registered successfully.");
+        }
+        keytap_macos::RegistrationOutcome::Error(msg) if msg == "cancelled" => {
+            die(&msg);
+        }
+        keytap_macos::RegistrationOutcome::Error(msg) => {
+            eprintln!("Couldn't open native passkey flow: {msg}");
+            nearby::register_nearby();
         }
     }
 }
