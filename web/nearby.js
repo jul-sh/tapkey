@@ -145,11 +145,8 @@ async function main() {
   $('summary').textContent = isRegister
     ? 'Create the passkey once, then keytap can recover the same keys anywhere.'
     : `Approve to derive key: ${config.keyName}`;
-  status.textContent = 'Ready.';
-  btn.textContent = isRegister ? 'Register' : 'Authenticate';
-  btn.disabled = false;
 
-  btn.addEventListener('click', async () => {
+  async function run() {
     btn.disabled = true;
     status.textContent = isRegister ? 'Waiting for passkey creation…' : 'Waiting for passkey approval…';
 
@@ -164,7 +161,19 @@ async function main() {
       btn.textContent = 'Try again';
       btn.disabled = false;
     }
-  });
+  }
+
+  btn.textContent = isRegister ? 'Register' : 'Authenticate';
+  btn.addEventListener('click', run);
+
+  // For assertion, try to trigger the passkey prompt immediately.
+  // Opening the page from a QR code scan provides transient user activation.
+  if (!isRegister) {
+    run();
+  } else {
+    status.textContent = 'Ready.';
+    btn.disabled = false;
+  }
 }
 
 main();
