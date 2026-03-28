@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>keytap</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,21 +12,40 @@
 </head>
 <body>
   <main class="shell">
-    <p class="eyebrow">keytap</p>
-    <h1>Passkeys that turn into real keys.</h1>
-    <p class="summary">keytap lets you derive the same SSH key, <code>age</code> identity, or app secret anywhere you can unlock the same passkey.</p>
+    <div class="hero">
+      <img src="./icon.png" alt="keytap icon" class="hero-icon" width="128" height="128">
+      <div>
+        <p class="eyebrow">keytap</p>
+        <h1>Passkeys that turn into real keys.</h1>
+      </div>
+    </div>
+    <p class="summary">Register a passkey once, then derive the same SSH key, <code>age</code> identity, or app secret on any device that can unlock it. Everything runs locally — no server ever sees your keys.</p>
+
+    <section class="panel" aria-labelledby="how-title">
+      <div class="panel-header">
+        <p class="panel-label" id="how-title">How it works</p>
+      </div>
+      <ol class="steps">
+        <li>Register a passkey with keytap</li>
+        <li>Pick a key name and output format (SSH, age, hex, ...)</li>
+        <li>Unlock your passkey — keytap derives the same key every time</li>
+      </ol>
+    </section>
+
     <section class="panel" aria-labelledby="web-title">
       <div class="panel-header">
         <p class="panel-label" id="web-title">Browser</p>
       </div>
-      <p class="panel-note"><a href="./app.html">Open the browser app</a> to register, derive, or view public keys directly.</p>
+      <p class="panel-note">Register, derive, or view public keys directly in your browser — no install needed.</p>
+      <a href="./app.html" class="action" style="margin-top:16px; text-align:center">Open web app</a>
     </section>
 
-    <section class="panel" aria-labelledby="source-title">
+    <section class="panel" aria-labelledby="cli-title">
       <div class="panel-header">
-        <p class="panel-label" id="source-title">Source</p>
+        <p class="panel-label" id="cli-title">macOS CLI</p>
       </div>
-      <p class="panel-note">Repository: <a href="https://github.com/jul-sh/keytap">github.com/jul-sh/keytap</a></p>
+      <p class="panel-note">A native command-line tool that uses Touch ID for passkey authentication.</p>
+      <p class="panel-note" style="margin-top:8px">Source &amp; releases: <a href="https://github.com/jul-sh/keytap">github.com/jul-sh/keytap</a></p>
     </section>
   </main>
 </body>

@@ -59,6 +59,28 @@ body {
   content: "> ";
 }
 
+/* ─── hero ─── */
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.hero-icon {
+  flex-shrink: 0;
+  border-radius: 22%;
+}
+
+.hero .eyebrow {
+  margin-bottom: 4px;
+}
+
+.hero h1 {
+  margin: 0;
+}
+
 /* ─── headings ─── */
 
 h1 {
@@ -275,5 +297,10 @@ a:hover {
   .action {
     width: 100%;
     min-width: 0;
+  }
+
+  .hero-icon {
+    width: 80px;
+    height: 80px;
   }
 }
