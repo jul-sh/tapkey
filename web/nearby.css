@@ -159,7 +159,7 @@ a:hover {
 }
 
 .panel-note {
-  color: var(--muted);
+  color: hsl(240, 30%, 82%);
   font-size: 0.95rem;
 }
 
