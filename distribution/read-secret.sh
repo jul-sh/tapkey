@@ -25,7 +25,11 @@ if [ ! -f "$SECRET_PATH" ]; then
 fi
 
 KEYCHAIN_SERVICE="keytap"
-KEYCHAIN_ACCOUNT="AGE_SECRET_KEY"
+# Use project-specific account to avoid cross-project key collisions.
+# Different projects have different age recipients, so each needs its own cached key.
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+KEYCHAIN_ACCOUNT="AGE_SECRET_KEY_${PROJECT_NAME}"
 
 # Try to read the age key from macOS Keychain (silent fail if locked or missing)
 try_keychain() {
