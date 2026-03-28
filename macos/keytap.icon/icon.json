@@ -1,8 +1,8 @@
 {
   "fill" : {
     "linear-gradient" : [
-      "extended-gray:1.00000,1.00000",
-      "extended-gray:0.98834,1.00000"
+      "display-p3:0.20000,0.20000,1.00000,1.00000",
+      "display-p3:0.21659,0.18849,1.00000,1.00000"
     ],
     "orientation" : {
       "start" : {
@@ -24,10 +24,10 @@
           "image-name" : "icon.png",
           "name" : "icon",
           "position" : {
-            "scale" : 1.26,
+            "scale" : 1.71,
             "translation-in-points" : [
-              -9.199999999999932,
-              5.75
+              -54.96562499999993,
+              -4.0859375
             ]
           }
         }
