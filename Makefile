@@ -22,7 +22,7 @@ build:
 	cargo build --release -p keytap
 	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	@cp macos/Info.plist $(BUNDLE)/Contents/Info.plist
-	@cp macos/keytap.icns $(BUNDLE)/Contents/Resources/keytap.icns
+	@cp -R macos/keytap.icon $(BUNDLE)/Contents/Resources/keytap.icon
 	@cp target/release/keytap $(BIN)
 	@echo "Built $(BUNDLE)"
 
